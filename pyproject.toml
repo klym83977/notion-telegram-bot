@@ -1,3 +1,2 @@
-Ini, TOML
 [tool.vercel]
 entrypoint = "api.bot:handler"
