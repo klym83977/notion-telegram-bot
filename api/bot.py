@@ -1,8 +1,10 @@
-import sys
 import os
+import requests
 import nest_asyncio
 from telegram import Update
-from notion_bot import application as bot_application
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+
+nest_asyncio.apply()
 
 # Додаємо поточну директорію до шляхів пошуку
 sys.path.append(os.getcwd())
