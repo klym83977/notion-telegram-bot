@@ -4,8 +4,6 @@ import nest_asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-nest_asyncio.apply()
-
 # Додаємо поточну директорію до шляхів пошуку
 sys.path.append(os.getcwd())
 nest_asyncio.apply()
