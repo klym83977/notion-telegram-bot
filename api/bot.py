@@ -1,31 +1,22 @@
 import sys
 import os
-import asyncio
 import nest_asyncio
 from telegram import Update
-from notion_bot import application
+from notion_bot import application as bot_application
 
-# Додаємо поточну директорію, щоб Python бачив notion_bot.py
+# Додаємо поточну директорію до шляхів пошуку
 sys.path.append(os.getcwd())
 nest_asyncio.apply()
 
+# Це функція, яку Vercel буде бачити як "application"
 async def handler(request):
-    """
-    Це основна функція, яку викликає Vercel.
-    Вона отримує запит, передає його в Telegram Application і повертає відповідь.
-    """
-    # Отримуємо JSON-дані запиту
     body = await request.json()
+    update = Update.de_json(body, bot_application.bot)
     
-    # Створюємо об'єкт Update
-    update = Update.de_json(body, application.bot)
+    await bot_application.initialize()
+    await bot_application.process_update(update)
     
-    # Обробляємо запит
-    await application.initialize()
-    await application.process_update(update)
-    
-    # Повертаємо успішну відповідь для Vercel
     return {"status": "ok"}
 
-# Призначаємо цю функцію як application, щоб Vercel її бачив
+# Призначаємо handler як application, щоб задовольнити Vercel
 application = handler
