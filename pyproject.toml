@@ -10,5 +10,9 @@ dependencies = [
     "nest_asyncio"
 ]
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [tool.vercel]
-entrypoint = "api.bot:handler"
+entrypoint = "api/bot.py:handler"
