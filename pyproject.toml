@@ -1,7 +1,6 @@
 [project]
 name = "notion-telegram-bot"
 version = "0.1.0"
-description = "Notion Telegram Bot"
 dependencies = [
     "python-telegram-bot==20.3",
     "requests",
@@ -11,9 +10,5 @@ dependencies = [
     "nest_asyncio"
 ]
 
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [tool.vercel]
-entrypoint = "api/bot.py:handler"
+entrypoint = "api.bot:handler"
