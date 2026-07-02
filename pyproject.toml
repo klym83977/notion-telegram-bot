@@ -11,4 +11,5 @@ dependencies = [
 ]
 
 [tool.vercel]
-entrypoint = "api.bot:handler"
+entrypoint = "api/bot.py:handler"
+```
