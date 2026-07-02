@@ -1,11 +1,17 @@
+import sys
+import os
 import json
 import asyncio
 import nest_asyncio
 from http.server import BaseHTTPRequestHandler
+
+# Додаємо корінь проекту до шляхів пошуку
+sys.path.append(os.getcwd())
+
 from telegram import Update
 from notion_bot import application
 
-# Дозволяємо запускати асинхронні задачі у Vercel
+# Це потрібно для стабільної роботи асинхронності у Vercel
 nest_asyncio.apply()
 
 class handler(BaseHTTPRequestHandler):
