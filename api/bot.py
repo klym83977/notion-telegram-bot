@@ -1,22 +1,22 @@
 import os
-import json
 import requests
-import nest_asyncio
 import asyncio
-from http.server import BaseHTTPRequestHandler
+from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-nest_asyncio.apply()
+app = Flask(__name__)
 
+# --- Конфігурація ---
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
 
 bot_app = Application.builder().token(TOKEN).build()
 
+# --- Логіка бота ---
 async def start(update, context):
-    await update.message.reply_text("✅ Бот успішно запущено на чистому Vercel!")
+    await update.message.reply_text("✅ Бот успішно запущено на Vercel з Flask!")
 
 async def handle_text(update, context):
     task_text = update.message.text
@@ -42,32 +42,26 @@ async def handle_text(update, context):
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        # Це виправить помилку "Crashed" у вікні Vercel та браузері
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain; charset=utf-8')
-        self.end_headers()
-        self.wfile.write("✅ Бот працює і готовий приймати запити від Telegram!".encode('utf-8'))
+# --- Flask Маршрути (WSGI, який вимагає Vercel) ---
+@app.route('/', methods=['GET'])
+def index():
+    return "✅ Бот працює на Flask і готовий приймати запити від Telegram!"
 
-    def do_POST(self):
-        # Ця частина приймає повідомлення від Telegram
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            body = json.loads(post_data.decode('utf-8'))
+@app.route('/', methods=['POST'])
+def webhook():
+    try:
+        body = request.get_json(force=True)
+        update = Update.de_json(body, bot_app.bot)
 
-            update = Update.de_json(body, bot_app.bot)
+        # Виконуємо асинхронний код бота
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(bot_app.initialize())
+        loop.run_until_complete(bot_app.process_update(update))
+        
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(bot_app.initialize())
-            loop.run_until_complete(bot_app.process_update(update))
-
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
-        except Exception as e:
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(str(e).encode('utf-8'))
+# Змінна application, як WSGI-додаток для Vercel
+application = app
