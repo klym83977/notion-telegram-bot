@@ -5,3 +5,4 @@ nest_asyncio
 dateparser
 SpeechRecognition
 pydub
+static-ffmpeg
