@@ -1,23 +1,16 @@
 import os
-import json
-import logging
 import tempfile
+import logging
 import requests
-import asyncio
-import nest_asyncio
 from flask import Flask, request, jsonify
-from typing import Dict
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Бібліотеки для Telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-
-# Бібліотеки для дат та голосу
 from dateparser.search import search_dates
 import speech_recognition as sr
 from pydub import AudioSegment
 
-# Спроба підключити ffmpeg всередині Vercel
+# Підключення ffmpeg на Vercel
 try:
     from static_ffmpeg import run
     ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise()
@@ -25,19 +18,8 @@ try:
 except Exception as e:
     print(f"Попередження щодо ffmpeg: {e}")
 
-nest_asyncio.apply()
-
-# --- ФІКС 1: Глобальний цикл подій (захист від втрати пам'яті на Vercel) ---
-try:
-    loop = asyncio.get_running_loop()
-except RuntimeError:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
 app = Flask(__name__)
-
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # --- Ключі ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -45,7 +27,8 @@ NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
 
-user_pending_tasks: Dict[int, dict] = {}
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
+user_pending_tasks = {}
 
 def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
     url = "https://api.notion.com/v1/pages"
@@ -69,27 +52,17 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
     try:
         response = requests.post(url, headers=headers, json=data)
         return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Помилка відправки в Notion: {e}")
+    except Exception:
         return False
 
-# --- Логіка Бот-платформи ---
-bot_app = (
-    Application.builder()
-    .token(TELEGRAM_TOKEN)
-    .concurrent_updates(False)  # ФІКС 2: Примусова синхронність! Рятує від "подвійного кліку"
-    .build()
-)
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Привіт! Я твій розумний асистент.\n"
-        "Пиши мені задачі текстом або відправляй голосові повідомлення!"
+@bot.message_handler(commands=['start'])
+def start_command(message):
+    bot.send_message(
+        message.chat.id, 
+        "✅ Привіт! Я твій розумний асистент.\nПиши мені задачі текстом або відправляй голосові повідомлення!"
     )
 
-async def process_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, task_text: str):
-    user_id = update.message.from_user.id
-    
+def process_task_text(chat_id, user_id, task_text):
     found_dates = search_dates(task_text, languages=['uk', 'ru'], settings={'PREFER_DATES_FROM': 'future'})
     deadline_iso = None
     date_msg = ""
@@ -107,25 +80,26 @@ async def process_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         "tag": None
     }
 
-    keyboard = [
-        [InlineKeyboardButton("📥 Беклог", callback_data="status_Беклог"), InlineKeyboardButton("🔥 В процесі", callback_data="status_В процесі")],
-        [InlineKeyboardButton("⏳ Очікування", callback_data="status_Очікування"), InlineKeyboardButton("✅ Готово", callback_data="status_Готово")]
-    ]
-    await update.message.reply_text(
-        f'Задача: "{task_text}"{date_msg}\n\n1️⃣ Оберіть колонку (Статус):',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    markup = InlineKeyboardMarkup()
+    markup.row(InlineKeyboardButton("📥 Беклог", callback_data="status_Беклог"), InlineKeyboardButton("🔥 В процесі", callback_data="status_В процесі"))
+    markup.row(InlineKeyboardButton("⏳ Очікування", callback_data="status_Очікування"), InlineKeyboardButton("✅ Готово", callback_data="status_Готово"))
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await process_task_text(update, context, update.message.text)
+    bot.send_message(chat_id, f'Задача: "{task_text}"{date_msg}\n\n1️⃣ Оберіть колонку (Статус):', reply_markup=markup)
 
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("🎧 Слухаю та розпізнаю голос...")
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
+    process_task_text(message.chat.id, message.from_user.id, message.text)
+
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    msg = bot.send_message(message.chat.id, "🎧 Слухаю та розпізнаю голос...")
     try:
-        voice_file = await context.bot.get_file(update.message.voice.file_id)
+        file_info = bot.get_file(message.voice.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
         
         with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as ogg_file:
-            await voice_file.download_to_drive(ogg_file.name)
+            ogg_file.write(downloaded_file)
+            ogg_file.flush()
             
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
                 audio = AudioSegment.from_ogg(ogg_file.name)
@@ -136,44 +110,38 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     audio_data = recognizer.record(source)
                     text = recognizer.recognize_google(audio_data, language="uk-UA")
         
-        await msg.delete()
-        await process_task_text(update, context, text)
-        
+        bot.delete_message(message.chat.id, msg.message_id)
+        process_task_text(message.chat.id, message.from_user.id, text)
     except Exception as e:
-        logger.error(f"Помилка голосу: {e}")
-        await msg.edit_text("❌ Не вдалося обробити голос. Спробуйте написати задачу текстом.")
+        bot.edit_message_text("❌ Не вдалося обробити голос. Спробуйте написати задачу текстом.", chat_id=message.chat.id, message_id=msg.message_id)
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    data = query.data
+@bot.callback_query_handler(func=lambda call: True)
+def button_callback(call):
+    user_id = call.from_user.id
+    data = call.data
     task_data = user_pending_tasks.get(user_id)
 
     if not task_data:
-        await query.edit_message_text("Зачекайте, я втратив контекст задачі. Спробуйте надіслати знову.")
+        bot.edit_message_text("Зачекайте, я втратив контекст задачі. Спробуйте надіслати знову.", chat_id=call.message.chat.id, message_id=call.message.message_id)
         return
 
     if data.startswith("status_"):
         task_data["status"] = data.split("_")[1]
-        keyboard = [
-            [InlineKeyboardButton("🔥 Високий", callback_data="priority_🔥 Високий"), InlineKeyboardButton("⚡ Середній", callback_data="priority_⚡ Середній")],
-            [InlineKeyboardButton("☕ Низький", callback_data="priority_☕ Низький")]
-        ]
-        await query.edit_message_text("2️⃣ Оберіть пріоритет:", reply_markup=InlineKeyboardMarkup(keyboard))
+        markup = InlineKeyboardMarkup()
+        markup.row(InlineKeyboardButton("🔥 Високий", callback_data="priority_🔥 Високий"), InlineKeyboardButton("⚡ Середній", callback_data="priority_⚡ Середній"))
+        markup.row(InlineKeyboardButton("☕ Низький", callback_data="priority_☕ Низький"))
+        bot.edit_message_text("2️⃣ Оберіть пріоритет:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
 
     elif data.startswith("priority_"):
         task_data["priority"] = data.split("_")[1]
-        keyboard = [
-            [InlineKeyboardButton("🏠 Дім", callback_data="tag_🏠 Дім"), InlineKeyboardButton("💻 Робота", callback_data="tag_💻 Робота")],
-            [InlineKeyboardButton("🚗 Авто", callback_data="tag_🚗 Авто"), InlineKeyboardButton("🛠️ DIY", callback_data="tag_🛠️ DIY")]
-        ]
-        await query.edit_message_text("3️⃣ Оберіть категорію (Тег):", reply_markup=InlineKeyboardMarkup(keyboard))
+        markup = InlineKeyboardMarkup()
+        markup.row(InlineKeyboardButton("🏠 Дім", callback_data="tag_🏠 Дім"), InlineKeyboardButton("💻 Робота", callback_data="tag_💻 Робота"))
+        markup.row(InlineKeyboardButton("🚗 Авто", callback_data="tag_🚗 Авто"), InlineKeyboardButton("🛠️ DIY", callback_data="tag_🛠️ DIY"))
+        bot.edit_message_text("3️⃣ Оберіть категорію (Тег):", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
 
     elif data.startswith("tag_"):
         task_data["tag"] = data.split("_")[1]
-        await query.edit_message_text("⏳ Зберігаю в Notion...")
+        bot.edit_message_text("⏳ Зберігаю в Notion...", chat_id=call.message.chat.id, message_id=call.message.message_id)
 
         success = create_notion_task(
             task_text=task_data["text"],
@@ -185,41 +153,24 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if success:
             del user_pending_tasks[user_id]
-            await query.edit_message_text(
-                f"✅ Задачу додано!\n\n"
-                f"📂 Статус: {task_data['status']}\n"
-                f"🎯 Пріоритет: {task_data['priority']}\n"
-                f"🏷️ Тег: {task_data['tag']}"
+            bot.edit_message_text(
+                f"✅ Задачу додано!\n\n📂 Статус: {task_data['status']}\n🎯 Пріоритет: {task_data['priority']}\n🏷️ Тег: {task_data['tag']}",
+                chat_id=call.message.chat.id, message_id=call.message.message_id
             )
         else:
-            await query.edit_message_text("❌ Помилка Notion. Перевірте назви колонок у вашій базі даних.")
+            bot.edit_message_text("❌ Помилка Notion. Перевірте назви колонок у вашій базі даних.", chat_id=call.message.chat.id, message_id=call.message.message_id)
 
-bot_app.add_handler(CommandHandler("start", start_command))
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-bot_app.add_handler(MessageHandler(filters.VOICE, handle_voice))
-bot_app.add_handler(CallbackQueryHandler(button_callback))
-
-async def process_update_async(update_data):
-    if getattr(bot_app, 'custom_initialized', False) is False:
-        await bot_app.initialize()
-        bot_app.custom_initialized = True
-    await bot_app.process_update(update_data)
-
-# --- Flask Сервер ---
 @app.route('/', methods=['GET'])
 def index():
-    return "✅ Бот на Vercel працює стабільно з усіма функціями!"
+    return "✅ Бот на Vercel працює ідеально з Telebot!"
 
 @app.route('/', methods=['POST'])
 def webhook():
-    try:
-        body = request.get_json(force=True)
-        update = Update.de_json(body, bot_app.bot)
-        
-        # Запуск у єдиному глобальному циклі
-        loop.run_until_complete(process_update_async(update))
-    except Exception as e:
-        logger.error(f"Помилка всередині вебхука: {e}")
-    return jsonify({"status": "ok"})
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return jsonify({"status": "ok"})
+    return '!', 403
 
 application = app
