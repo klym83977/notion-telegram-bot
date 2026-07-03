@@ -26,12 +26,20 @@ except Exception as e:
     print(f"Попередження щодо ffmpeg: {e}")
 
 nest_asyncio.apply()
+
+# --- ФІКС 1: Глобальний цикл подій (захист від втрати пам'яті на Vercel) ---
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 app = Flask(__name__)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Ключі (з Environment Variables у Vercel) ---
+# --- Ключі ---
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
@@ -66,7 +74,12 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
         return False
 
 # --- Логіка Бот-платформи ---
-bot_app = Application.builder().token(TELEGRAM_TOKEN).build()
+bot_app = (
+    Application.builder()
+    .token(TELEGRAM_TOKEN)
+    .concurrent_updates(False)  # ФІКС 2: Примусова синхронність! Рятує від "подвійного кліку"
+    .build()
+)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -186,16 +199,16 @@ bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messa
 bot_app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 bot_app.add_handler(CallbackQueryHandler(button_callback))
 
+async def process_update_async(update_data):
+    if getattr(bot_app, 'custom_initialized', False) is False:
+        await bot_app.initialize()
+        bot_app.custom_initialized = True
+    await bot_app.process_update(update_data)
+
 # --- Flask Сервер ---
 @app.route('/', methods=['GET'])
 def index():
     return "✅ Бот на Vercel працює стабільно з усіма функціями!"
-
-async def process_update_async(update_data):
-    # ОСЬ ТОЙ САМИЙ ФІКС, ЯКИЙ РЯТУЄ ВІД ПАДІННЯ:
-    if getattr(bot_app, '_initialized', False) is False:
-        await bot_app.initialize()
-    await bot_app.process_update(update_data)
 
 @app.route('/', methods=['POST'])
 def webhook():
@@ -203,8 +216,7 @@ def webhook():
         body = request.get_json(force=True)
         update = Update.de_json(body, bot_app.bot)
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Запуск у єдиному глобальному циклі
         loop.run_until_complete(process_update_async(update))
     except Exception as e:
         logger.error(f"Помилка всередині вебхука: {e}")
