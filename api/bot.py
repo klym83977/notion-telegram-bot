@@ -103,6 +103,10 @@ async def process_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Повноцінний асинхронний обробник тексту замість колишньої lambda"""
+    await process_task_text(update, context, update.message.text)
+
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("🎧 Слухаю та розпізнаю голос...")
     try:
@@ -171,15 +175,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del user_pending_tasks[user_id]
             await query.edit_message_text(
                 f"✅ Задачу додано!\n\n"
-                f"📂 Статус: {task_data['status']}\n"
-                f"🎯 Пріоритет: {task_data['priority']}\n"
-                f"🏷️ Тег: {task_data['tag']}"
+                f"📂 Status: {task_data['status']}\n"
+                f"🎯 Priority: {task_data['priority']}\n"
+                f"🏷️ Tags: {task_data['tag']}"
             )
         else:
-            await query.edit_message_text("❌ Помилка Notion. Перевірте назви колонок.")
+            await query.edit_message_text("❌ Помилка Notion. Перевірте назви колонок у вашій базі даних.")
 
 bot_app.add_handler(CommandHandler("start", start_command))
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: process_task_text(u, c, u.message.text)))
+bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 bot_app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 bot_app.add_handler(CallbackQueryHandler(button_callback))
 
@@ -190,11 +194,15 @@ def index():
 
 @app.route('/', methods=['POST'])
 def webhook():
-    body = request.get_json(force=True)
-    update = Update.de_json(body, bot_app.bot)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(bot_app.process_update(update))
+    try:
+        body = request.get_json(force=True)
+        update = Update.de_json(body, bot_app.bot)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(bot_app.initialize())
+        loop.run_until_complete(bot_app.process_update(update))
+    except Exception as e:
+        logger.error(f"Помилка всередині вебхука: {e}")
     return jsonify({"status": "ok"})
 
 application = app
