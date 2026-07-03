@@ -1,2 +1,6 @@
+[project]
+name = "telegram-notion-bot"
+version = "1.0.0"
+
 [tool.vercel]
 entrypoint = "api.bot:app"
