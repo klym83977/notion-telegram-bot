@@ -104,7 +104,6 @@ async def process_task_text(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Повноцінний асинхронний обробник тексту замість колишньої lambda"""
     await process_task_text(update, context, update.message.text)
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,9 +174,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del user_pending_tasks[user_id]
             await query.edit_message_text(
                 f"✅ Задачу додано!\n\n"
-                f"📂 Status: {task_data['status']}\n"
-                f"🎯 Priority: {task_data['priority']}\n"
-                f"🏷️ Tags: {task_data['tag']}"
+                f"📂 Статус: {task_data['status']}\n"
+                f"🎯 Пріоритет: {task_data['priority']}\n"
+                f"🏷️ Тег: {task_data['tag']}"
             )
         else:
             await query.edit_message_text("❌ Помилка Notion. Перевірте назви колонок у вашій базі даних.")
@@ -192,15 +191,21 @@ bot_app.add_handler(CallbackQueryHandler(button_callback))
 def index():
     return "✅ Бот на Vercel працює стабільно з усіма функціями!"
 
+async def process_update_async(update_data):
+    # ОСЬ ТОЙ САМИЙ ФІКС, ЯКИЙ РЯТУЄ ВІД ПАДІННЯ:
+    if getattr(bot_app, '_initialized', False) is False:
+        await bot_app.initialize()
+    await bot_app.process_update(update_data)
+
 @app.route('/', methods=['POST'])
 def webhook():
     try:
         body = request.get_json(force=True)
         update = Update.de_json(body, bot_app.bot)
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(bot_app.initialize())
-        loop.run_until_complete(bot_app.process_update(update))
+        loop.run_until_complete(process_update_async(update))
     except Exception as e:
         logger.error(f"Помилка всередині вебхука: {e}")
     return jsonify({"status": "ok"})
