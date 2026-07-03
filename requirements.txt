@@ -1,7 +1,6 @@
-python-telegram-bot==20.3
+pyTelegramBotAPI==4.14.1
 requests
 Flask
-nest_asyncio
 dateparser
 SpeechRecognition
 pydub
