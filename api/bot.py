@@ -55,6 +55,46 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
     except Exception:
         return False
 
+# --- Генерація єдиного вікна з кнопками ---
+def generate_markup(task_data):
+    markup = InlineKeyboardMarkup()
+
+    # СТАТУС
+    s_b = "✅ 📥 Беклог" if task_data['status'] == "Беклог" else "📥 Беклог"
+    s_p = "✅ 🔥 В процесі" if task_data['status'] == "В процесі" else "🔥 В процесі"
+    s_w = "✅ ⏳ Очікування" if task_data['status'] == "Очікування" else "⏳ Очікування"
+    s_d = "✅ ✅ Готово" if task_data['status'] == "Готово" else "✅ Готово"
+
+    markup.row(InlineKeyboardButton(s_b, callback_data="status_Беклог"),
+               InlineKeyboardButton(s_p, callback_data="status_В процесі"))
+    markup.row(InlineKeyboardButton(s_w, callback_data="status_Очікування"),
+               InlineKeyboardButton(s_d, callback_data="status_Готово"))
+
+    # ПРІОРИТЕТ
+    p_h = "✅ 🔥 Вис" if task_data['priority'] == "🔥 Високий" else "🔥 Високий"
+    p_m = "✅ ⚡ Сер" if task_data['priority'] == "⚡ Середній" else "⚡ Середній"
+    p_l = "✅ ☕ Низ" if task_data['priority'] == "☕ Низький" else "☕ Низький"
+
+    markup.row(InlineKeyboardButton(p_h, callback_data="priority_🔥 Високий"),
+               InlineKeyboardButton(p_m, callback_data="priority_⚡ Середній"),
+               InlineKeyboardButton(p_l, callback_data="priority_☕ Низький"))
+
+    # КАТЕГОРІЯ (ТЕГ)
+    t_h = "✅ 🏠 Дім" if task_data['tag'] == "🏠 Дім" else "🏠 Дім"
+    t_w = "✅ 💻 Робота" if task_data['tag'] == "💻 Робота" else "💻 Робота"
+    t_a = "✅ 🚗 Авто" if task_data['tag'] == "🚗 Авто" else "🚗 Авто"
+    t_d = "✅ 🛠️ DIY" if task_data['tag'] == "🛠️ DIY" else "🛠️ DIY"
+
+    markup.row(InlineKeyboardButton(t_h, callback_data="tag_🏠 Дім"),
+               InlineKeyboardButton(t_w, callback_data="tag_💻 Робота"))
+    markup.row(InlineKeyboardButton(t_a, callback_data="tag_🚗 Авто"),
+               InlineKeyboardButton(t_d, callback_data="tag_🛠️ DIY"))
+
+    # КНОПКА ЗБЕРЕЖЕННЯ
+    markup.row(InlineKeyboardButton("🚀 ЗБЕРЕГТИ В NOTION", callback_data="save_task"))
+
+    return markup
+
 @bot.message_handler(commands=['start'])
 def start_command(message):
     bot.send_message(
@@ -72,19 +112,20 @@ def process_task_text(chat_id, user_id, task_text):
         deadline_iso = date_obj.strftime("%Y-%m-%d")
         date_msg = f"\n📅 Розпізнано дедлайн: {deadline_iso}"
 
+    # Зберігаємо задачу з вибраними параметрами за замовчуванням
     user_pending_tasks[user_id] = {
         "text": task_text,
         "deadline": deadline_iso,
-        "status": None,
-        "priority": None,
-        "tag": None
+        "status": "Беклог",        # За замовчуванням
+        "priority": "⚡ Середній",  # За замовчуванням
+        "tag": None               # Користувач має обрати сам
     }
 
-    markup = InlineKeyboardMarkup()
-    markup.row(InlineKeyboardButton("📥 Беклог", callback_data="status_Беклог"), InlineKeyboardButton("🔥 В процесі", callback_data="status_В процесі"))
-    markup.row(InlineKeyboardButton("⏳ Очікування", callback_data="status_Очікування"), InlineKeyboardButton("✅ Готово", callback_data="status_Готово"))
-
-    bot.send_message(chat_id, f'Задача: "{task_text}"{date_msg}\n\n1️⃣ Оберіть колонку (Статус):', reply_markup=markup)
+    bot.send_message(
+        chat_id, 
+        f'📝 Задача: "{task_text}"{date_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', 
+        reply_markup=generate_markup(user_pending_tasks[user_id])
+    )
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
@@ -122,25 +163,15 @@ def button_callback(call):
     task_data = user_pending_tasks.get(user_id)
 
     if not task_data:
-        bot.edit_message_text("Зачекайте, я втратив контекст задачі. Спробуйте надіслати знову.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        bot.answer_callback_query(call.id, "Зачекайте, я втратив контекст задачі. Надішліть її знову.", show_alert=True)
         return
 
-    if data.startswith("status_"):
-        task_data["status"] = data.split("_")[1]
-        markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("🔥 Високий", callback_data="priority_🔥 Високий"), InlineKeyboardButton("⚡ Середній", callback_data="priority_⚡ Середній"))
-        markup.row(InlineKeyboardButton("☕ Низький", callback_data="priority_☕ Низький"))
-        bot.edit_message_text("2️⃣ Оберіть пріоритет:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+    # Якщо натиснута кнопка "ЗБЕРЕГТИ"
+    if data == "save_task":
+        if not task_data['tag']:
+            bot.answer_callback_query(call.id, "⚠️ Будь ласка, оберіть Категорію (Тег) перед збереженням!", show_alert=True)
+            return
 
-    elif data.startswith("priority_"):
-        task_data["priority"] = data.split("_")[1]
-        markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("🏠 Дім", callback_data="tag_🏠 Дім"), InlineKeyboardButton("💻 Робота", callback_data="tag_💻 Робота"))
-        markup.row(InlineKeyboardButton("🚗 Авто", callback_data="tag_🚗 Авто"), InlineKeyboardButton("🛠️ DIY", callback_data="tag_🛠️ DIY"))
-        bot.edit_message_text("3️⃣ Оберіть категорію (Тег):", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
-
-    elif data.startswith("tag_"):
-        task_data["tag"] = data.split("_")[1]
         bot.edit_message_text("⏳ Зберігаю в Notion...", chat_id=call.message.chat.id, message_id=call.message.message_id)
 
         success = create_notion_task(
@@ -154,11 +185,42 @@ def button_callback(call):
         if success:
             del user_pending_tasks[user_id]
             bot.edit_message_text(
-                f"✅ Задачу додано!\n\n📂 Статус: {task_data['status']}\n🎯 Пріоритет: {task_data['priority']}\n🏷️ Тег: {task_data['tag']}",
+                f"✅ Задачу збережено!\n\n📂 Статус: {task_data['status']}\n🎯 Пріоритет: {task_data['priority']}\n🏷️ Тег: {task_data['tag']}",
                 chat_id=call.message.chat.id, message_id=call.message.message_id
             )
         else:
-            bot.edit_message_text("❌ Помилка Notion. Перевірте назви колонок у вашій базі даних.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            bot.edit_message_text("❌ Помилка Notion. Перевірте назви колонок.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        return
+
+    # Якщо користувач просто перемикає значення
+    changed = False
+    if data.startswith("status_"):
+        new_val = data.split("_")[1]
+        if task_data['status'] != new_val:
+            task_data['status'] = new_val
+            changed = True
+            
+    elif data.startswith("priority_"):
+        new_val = data.split("_", 1)[1]
+        if task_data['priority'] != new_val:
+            task_data['priority'] = new_val
+            changed = True
+            
+    elif data.startswith("tag_"):
+        new_val = data.split("_", 1)[1]
+        if task_data['tag'] != new_val:
+            task_data['tag'] = new_val
+            changed = True
+
+    # Оновлюємо клавіатуру лише якщо було змінено статус
+    if changed:
+        bot.edit_message_reply_markup(
+            chat_id=call.message.chat.id, 
+            message_id=call.message.message_id, 
+            reply_markup=generate_markup(task_data)
+        )
+    
+    bot.answer_callback_query(call.id)
 
 @app.route('/', methods=['GET'])
 def index():
