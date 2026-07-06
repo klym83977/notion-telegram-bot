@@ -1,0 +1,7 @@
+pyTelegramBotAPI==4.14.1
+requests
+Flask
+dateparser
+SpeechRecognition
+pydub
+static-ffmpeg
