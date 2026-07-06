@@ -27,6 +27,9 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
         "Content-Type": "application/json",
         "Notion-Version": NOTION_VERSION
     }
+    
+    # УВАГА: Тут вказані точні назви колонок вашої бази Notion. 
+    # Вони мають збігатися на 100% (Status, Priority, Tags)
     data = {
         "parent": {"database_id": NOTION_DATABASE_ID},
         "properties": {
@@ -41,31 +44,52 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
         
     try:
         response = requests.post(url, headers=headers, json=data)
-        return response.status_code == 200
-    except Exception:
-        return False
+        if response.status_code == 200:
+            return True, "OK"
+        else:
+            return False, response.text
+    except Exception as e:
+        return False, str(e)
 
 def generate_markup(task_data):
     markup = InlineKeyboardMarkup()
-    s_b = "✅ 📥 Беклог" if task_data['status'] == "Беклог" else "📥 Беклог"
-    s_p = "✅ 🔥 В процесі" if task_data['status'] == "В процесі" else "🔥 В процесі"
-    s_w = "✅ ⏳ Очікування" if task_data['status'] == "Очікування" else "⏳ Очікування"
-    s_d = "✅ ✅ Готово" if task_data['status'] == "Готово" else "✅ Готово"
-    markup.row(InlineKeyboardButton(s_b, callback_data="status_Беклог"), InlineKeyboardButton(s_p, callback_data="status_В процесі"))
-    markup.row(InlineKeyboardButton(s_w, callback_data="status_Очікування"), InlineKeyboardButton(s_d, callback_data="status_Готово"))
 
-    p_h = "✅ 🔥 Вис" if task_data['priority'] == "🔥 Високий" else "🔥 Високий"
-    p_m = "✅ ⚡ Сер" if task_data['priority'] == "⚡ Середній" else "⚡ Середній"
-    p_l = "✅ ☕ Низ" if task_data['priority'] == "☕ Низький" else "☕ Низький"
-    markup.row(InlineKeyboardButton(p_h, callback_data="priority_🔥 Високий"), InlineKeyboardButton(p_m, callback_data="priority_⚡ Середній"), InlineKeyboardButton(p_l, callback_data="priority_☕ Низький"))
+    def btn(text, val, current_val, prefix):
+        if val == current_val:
+            return InlineKeyboardButton(f"✅ {text}", callback_data=f"{prefix}_{val}")
+        return InlineKeyboardButton(text, callback_data=f"{prefix}_{val}")
 
-    t_h = "✅ 🏠 Дім" if task_data['tag'] == "🏠 Дім" else "🏠 Дім"
-    t_w = "✅ 💻 Робота" if task_data['tag'] == "💻 Робота" else "💻 Робота"
-    t_a = "✅ 🚗 Авто" if task_data['tag'] == "🚗 Авто" else "🚗 Авто"
-    t_d = "✅ 🛠️ DIY" if task_data['tag'] == "🛠️ DIY" else "🛠️ DIY"
-    markup.row(InlineKeyboardButton(t_h, callback_data="tag_🏠 Дім"), InlineKeyboardButton(t_w, callback_data="tag_💻 Робота"))
-    markup.row(InlineKeyboardButton(t_a, callback_data="tag_🚗 Авто"), InlineKeyboardButton(t_d, callback_data="tag_🛠️ DIY"))
+    # --- Блок СТАТУС ---
+    markup.row(InlineKeyboardButton("— 📊 СТАТУС —", callback_data="ignore"))
+    markup.row(
+        btn("Беклог", "Беклог", task_data['status'], "status"),
+        btn("В процесі", "В процесі", task_data['status'], "status")
+    )
+    markup.row(
+        btn("Очікування", "Очікування", task_data['status'], "status"),
+        btn("Готово", "Готово", task_data['status'], "status")
+    )
 
+    # --- Блок ПРІОРИТЕТ ---
+    markup.row(InlineKeyboardButton("— 🎯 ПРІОРИТЕТ —", callback_data="ignore"))
+    markup.row(
+        btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"),
+        btn("⚡ Середній", "⚡ Середній", task_data['priority'], "priority"),
+        btn("☕ Низький", "☕ Низький", task_data['priority'], "priority")
+    )
+
+    # --- Блок КАТЕГОРІЯ ---
+    markup.row(InlineKeyboardButton("— 🏷️ КАТЕГОРІЯ —", callback_data="ignore"))
+    markup.row(
+        btn("🏠 Дім", "🏠 Дім", task_data['tag'], "tag"),
+        btn("💻 Робота", "💻 Робота", task_data['tag'], "tag")
+    )
+    markup.row(
+        btn("🚗 Авто", "🚗 Авто", task_data['tag'], "tag"),
+        btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag")
+    )
+
+    # --- Кнопка ЗБЕРЕЖЕННЯ ---
     markup.row(InlineKeyboardButton("🚀 ЗБЕРЕГТИ В NOTION", callback_data="save_task"))
     return markup
 
@@ -89,7 +113,11 @@ def process_task_text(chat_id, user_id, task_text):
         "priority": "⚡ Середній",  
         "tag": None               
     }
-    bot.send_message(chat_id, f'📝 Задача: "{task_text}"{date_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', reply_markup=generate_markup(user_pending_tasks[user_id]))
+    bot.send_message(
+        chat_id, 
+        f'📝 Задача: "{task_text}"{date_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', 
+        reply_markup=generate_markup(user_pending_tasks[user_id])
+    )
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
@@ -120,7 +148,7 @@ def handle_voice(message):
         bot.delete_message(message.chat.id, msg.message_id)
         process_task_text(message.chat.id, message.from_user.id, text)
     except Exception as e:
-        bot.edit_message_text(f"❌ Не вдалося обробити голос. Спробуйте текстом. Помилка: {e}", chat_id=message.chat.id, message_id=msg.message_id)
+        bot.edit_message_text(f"❌ Помилка голосу: {e}", chat_id=message.chat.id, message_id=msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def button_callback(call):
@@ -128,21 +156,30 @@ def button_callback(call):
     data = call.data
     task_data = user_pending_tasks.get(user_id)
 
+    if data == "ignore":
+        bot.answer_callback_query(call.id)
+        return
+
     if not task_data:
         bot.answer_callback_query(call.id, "Зачекайте, я втратив контекст задачі. Надішліть її знову.", show_alert=True)
         return
 
     if data == "save_task":
         if not task_data['tag']:
-            bot.answer_callback_query(call.id, "⚠️ Будь ласка, оберіть Категорію (Тег) перед збереженням!", show_alert=True)
+            bot.answer_callback_query(call.id, "⚠️ Будь ласка, оберіть Категорію перед збереженням!", show_alert=True)
             return
+            
         bot.edit_message_text("⏳ Зберігаю в Notion...", chat_id=call.message.chat.id, message_id=call.message.message_id)
-        success = create_notion_task(task_data["text"], task_data["status"], task_data["priority"], task_data["tag"], task_data["deadline"])
+        
+        # Отримуємо не лише успіх, а й текст помилки від Notion
+        success, error_msg = create_notion_task(task_data["text"], task_data["status"], task_data["priority"], task_data["tag"], task_data["deadline"])
+        
         if success:
             del user_pending_tasks[user_id]
             bot.edit_message_text(f"✅ Задачу збережено!\n\n📂 Статус: {task_data['status']}\n🎯 Пріоритет: {task_data['priority']}\n🏷️ Тег: {task_data['tag']}", chat_id=call.message.chat.id, message_id=call.message.message_id)
         else:
-            bot.edit_message_text("❌ Помилка Notion. Перевірте назви колонок.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            # Виводимо точну помилку, щоб знати, що виправляти
+            bot.edit_message_text(f"❌ Помилка Notion!\n\nДеталі: {error_msg[:250]}", chat_id=call.message.chat.id, message_id=call.message.message_id)
         return
 
     changed = False
