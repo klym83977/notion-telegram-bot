@@ -17,7 +17,7 @@ NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
 
 def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
