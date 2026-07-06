@@ -10,13 +10,8 @@ from dateparser.search import search_dates
 import speech_recognition as sr
 from pydub import AudioSegment
 
-# Підключення ffmpeg на Vercel
-try:
-    from static_ffmpeg import run
-    ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise()
-    AudioSegment.converter = ffmpeg_exe
-except Exception as e:
-    print(f"Попередження щодо ffmpeg: {e}")
+# УВАГА: Ми прибрали завантаження ffmpeg звідси, щоб сервер не "падав" при старті
+# Воно тепер ізольоване всередині функції handle_voice
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -116,9 +111,9 @@ def process_task_text(chat_id, user_id, task_text):
     user_pending_tasks[user_id] = {
         "text": task_text,
         "deadline": deadline_iso,
-        "status": "Беклог",        # За замовчуванням
-        "priority": "⚡ Середній",  # За замовчуванням
-        "tag": None               # Користувач має обрати сам
+        "status": "Беклог",        
+        "priority": "⚡ Середній",  
+        "tag": None               
     }
 
     bot.send_message(
@@ -135,6 +130,11 @@ def handle_text(message):
 def handle_voice(message):
     msg = bot.send_message(message.chat.id, "🎧 Слухаю та розпізнаю голос...")
     try:
+        # --- ТУТ МИ СХОВАЛИ ЗАВАНТАЖЕННЯ FFMPEG ---
+        from static_ffmpeg import run
+        ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise()
+        AudioSegment.converter = ffmpeg_exe
+        
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
@@ -154,7 +154,7 @@ def handle_voice(message):
         bot.delete_message(message.chat.id, msg.message_id)
         process_task_text(message.chat.id, message.from_user.id, text)
     except Exception as e:
-        bot.edit_message_text("❌ Не вдалося обробити голос. Спробуйте написати задачу текстом.", chat_id=message.chat.id, message_id=msg.message_id)
+        bot.edit_message_text(f"❌ Не вдалося обробити голос. Спробуйте текстом. Помилка: {e}", chat_id=message.chat.id, message_id=msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def button_callback(call):
