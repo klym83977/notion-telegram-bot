@@ -10,6 +10,14 @@ import speech_recognition as sr
 from pydub import AudioSegment
 from datetime import date
 
+# ... (ваші існуючі імпорти)
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+# ДОДАЙТЕ ЦІ 2 РЯДКИ:
+import os
+os.environ["STATIC_FFMPEG_CACHE"] = "/tmp/static-ffmpeg"
+
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
