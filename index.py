@@ -28,8 +28,6 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
         "Notion-Version": NOTION_VERSION
     }
     
-    # УВАГА: Тут вказані точні назви колонок вашої бази Notion. 
-    # Вони мають збігатися на 100% (Status, Priority, Tags)
     data = {
         "parent": {"database_id": NOTION_DATABASE_ID},
         "properties": {
@@ -59,7 +57,6 @@ def generate_markup(task_data):
             return InlineKeyboardButton(f"✅ {text}", callback_data=f"{prefix}_{val}")
         return InlineKeyboardButton(text, callback_data=f"{prefix}_{val}")
 
-    # --- Блок СТАТУС ---
     markup.row(InlineKeyboardButton("— 📊 СТАТУС —", callback_data="ignore"))
     markup.row(
         btn("Беклог", "Беклог", task_data['status'], "status"),
@@ -70,7 +67,6 @@ def generate_markup(task_data):
         btn("Готово", "Готово", task_data['status'], "status")
     )
 
-    # --- Блок ПРІОРИТЕТ ---
     markup.row(InlineKeyboardButton("— 🎯 ПРІОРИТЕТ —", callback_data="ignore"))
     markup.row(
         btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"),
@@ -78,7 +74,6 @@ def generate_markup(task_data):
         btn("☕ Низький", "☕ Низький", task_data['priority'], "priority")
     )
 
-    # --- Блок КАТЕГОРІЯ ---
     markup.row(InlineKeyboardButton("— 🏷️ КАТЕГОРІЯ —", callback_data="ignore"))
     markup.row(
         btn("🏠 Дім", "🏠 Дім", task_data['tag'], "tag"),
@@ -89,7 +84,6 @@ def generate_markup(task_data):
         btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag")
     )
 
-    # --- Кнопка ЗБЕРЕЖЕННЯ ---
     markup.row(InlineKeyboardButton("🚀 ЗБЕРЕГТИ В NOTION", callback_data="save_task"))
     return markup
 
@@ -171,14 +165,12 @@ def button_callback(call):
             
         bot.edit_message_text("⏳ Зберігаю в Notion...", chat_id=call.message.chat.id, message_id=call.message.message_id)
         
-        # Отримуємо не лише успіх, а й текст помилки від Notion
         success, error_msg = create_notion_task(task_data["text"], task_data["status"], task_data["priority"], task_data["tag"], task_data["deadline"])
         
         if success:
             del user_pending_tasks[user_id]
             bot.edit_message_text(f"✅ Задачу збережено!\n\n📂 Статус: {task_data['status']}\n🎯 Пріоритет: {task_data['priority']}\n🏷️ Тег: {task_data['tag']}", chat_id=call.message.chat.id, message_id=call.message.message_id)
         else:
-            # Виводимо точну помилку, щоб знати, що виправляти
             bot.edit_message_text(f"❌ Помилка Notion!\n\nДеталі: {error_msg[:250]}", chat_id=call.message.chat.id, message_id=call.message.message_id)
         return
 
