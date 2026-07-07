@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
-IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY") # Новий ключ для фото
+IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY")
 NOTION_VERSION = "2022-06-28"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
@@ -118,22 +118,21 @@ def process_task_text(chat_id, user_id, task_text, image_url=None):
 def handle_text(message):
     process_task_text(message.chat.id, message.from_user.id, message.text)
 
-# --- НОВИЙ БЛОК ДЛЯ ФОТО ---
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     msg = bot.send_message(message.chat.id, "🖼️ Обробляю фотографію...")
     try:
-        # Якщо підпису немає, ставимо стандартний
         task_text = message.caption if message.caption else "Фото-задача (без підпису)"
         
-        # Завантажуємо фото з Telegram
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Відправляємо на ImgBB
         imgbb_url = "https://api.imgbb.com/1/upload"
         payload = {"key": IMGBB_API_KEY}
-        files = {"image": downloaded_file}
+        
+        # ВИПРАВЛЕННЯ: додаємо правильний формат, щоб ImgBB не відхиляв файл
+        files = {"image": ("photo.jpg", downloaded_file, "image/jpeg")}
+        
         res = requests.post(imgbb_url, data=payload, files=files)
         
         if res.status_code == 200:
@@ -199,7 +198,7 @@ def button_callback(call):
             task_data["priority"], 
             task_data["tag"], 
             task_data["deadline"],
-            task_data.get("image_url") # Передаємо посилання на фото
+            task_data.get("image_url")
         )
         
         if success:
