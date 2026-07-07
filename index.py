@@ -15,12 +15,13 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
+IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY") # Новий ключ для фото
 NOTION_VERSION = "2022-06-28"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
 
-def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
+def create_notion_task(task_text, status, priority, tag, deadline_iso=None, image_url=None):
     url = "https://api.notion.com/v1/pages"
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -40,6 +41,19 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None):
     if deadline_iso: 
         data["properties"]["Deadline"] = {"date": {"start": deadline_iso}}
         
+    # Якщо є фото, додаємо його прямо в тіло сторінки Notion
+    if image_url:
+        data["children"] = [
+            {
+                "object": "block",
+                "type": "image",
+                "image": {
+                    "type": "external",
+                    "external": {"url": image_url}
+                }
+            }
+        ]
+        
     try:
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 200:
@@ -58,40 +72,24 @@ def generate_markup(task_data):
         return InlineKeyboardButton(text, callback_data=f"{prefix}_{val}")
 
     markup.row(InlineKeyboardButton("— 📊 СТАТУС —", callback_data="ignore"))
-    markup.row(
-        btn("Беклог", "Беклог", task_data['status'], "status"),
-        btn("В процесі", "В процесі", task_data['status'], "status")
-    )
-    markup.row(
-        btn("Очікування", "Очікування", task_data['status'], "status"),
-        btn("Готово", "Готово", task_data['status'], "status")
-    )
+    markup.row(btn("Беклог", "Беклог", task_data['status'], "status"), btn("В процесі", "В процесі", task_data['status'], "status"))
+    markup.row(btn("Очікування", "Очікування", task_data['status'], "status"), btn("Готово", "Готово", task_data['status'], "status"))
 
     markup.row(InlineKeyboardButton("— 🎯 ПРІОРИТЕТ —", callback_data="ignore"))
-    markup.row(
-        btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"),
-        btn("⚡ Середній", "⚡ Середній", task_data['priority'], "priority"),
-        btn("☕ Низький", "☕ Низький", task_data['priority'], "priority")
-    )
+    markup.row(btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"), btn("⚡ Середній", "⚡ Середній", task_data['priority'], "priority"), btn("☕ Низький", "☕ Низький", task_data['priority'], "priority"))
 
     markup.row(InlineKeyboardButton("— 🏷️ КАТЕГОРІЯ —", callback_data="ignore"))
-    markup.row(
-        btn("🏠 Дім", "🏠 Дім", task_data['tag'], "tag"),
-        btn("💻 Робота", "💻 Робота", task_data['tag'], "tag")
-    )
-    markup.row(
-        btn("🚗 Авто", "🚗 Авто", task_data['tag'], "tag"),
-        btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag")
-    )
+    markup.row(btn("🏠 Дім", "🏠 Дім", task_data['tag'], "tag"), btn("💻 Робота", "💻 Робота", task_data['tag'], "tag"))
+    markup.row(btn("🚗 Авто", "🚗 Авто", task_data['tag'], "tag"), btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag"))
 
     markup.row(InlineKeyboardButton("🚀 ЗБЕРЕГТИ В NOTION", callback_data="save_task"))
     return markup
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
-    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.\nПиши мені задачі текстом або відправляй голосові повідомлення!")
+    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.\nПиши задачі текстом, голосом або надсилай фото з підписом!")
 
-def process_task_text(chat_id, user_id, task_text):
+def process_task_text(chat_id, user_id, task_text, image_url=None):
     found_dates = search_dates(task_text, languages=['uk', 'ru'], settings={'PREFER_DATES_FROM': 'future'})
     deadline_iso = None
     date_msg = ""
@@ -100,22 +98,52 @@ def process_task_text(chat_id, user_id, task_text):
         deadline_iso = date_obj.strftime("%Y-%m-%d")
         date_msg = f"\n📅 Розпізнано дедлайн: {deadline_iso}"
 
+    img_msg = "\n🖼️ Додано фотографію" if image_url else ""
+
     user_pending_tasks[user_id] = {
         "text": task_text,
         "deadline": deadline_iso,
         "status": "Беклог",        
         "priority": "⚡ Середній",  
-        "tag": None               
+        "tag": None,
+        "image_url": image_url
     }
     bot.send_message(
         chat_id, 
-        f'📝 Задача: "{task_text}"{date_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', 
+        f'📝 Задача: "{task_text}"{date_msg}{img_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', 
         reply_markup=generate_markup(user_pending_tasks[user_id])
     )
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     process_task_text(message.chat.id, message.from_user.id, message.text)
+
+# --- НОВИЙ БЛОК ДЛЯ ФОТО ---
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    msg = bot.send_message(message.chat.id, "🖼️ Обробляю фотографію...")
+    try:
+        # Якщо підпису немає, ставимо стандартний
+        task_text = message.caption if message.caption else "Фото-задача (без підпису)"
+        
+        # Завантажуємо фото з Telegram
+        file_info = bot.get_file(message.photo[-1].file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        # Відправляємо на ImgBB
+        imgbb_url = "https://api.imgbb.com/1/upload"
+        payload = {"key": IMGBB_API_KEY}
+        files = {"image": downloaded_file}
+        res = requests.post(imgbb_url, data=payload, files=files)
+        
+        if res.status_code == 200:
+            image_url = res.json()["data"]["url"]
+            bot.delete_message(message.chat.id, msg.message_id)
+            process_task_text(message.chat.id, message.from_user.id, task_text, image_url)
+        else:
+            bot.edit_message_text(f"❌ Помилка ImgBB: {res.text}", chat_id=message.chat.id, message_id=msg.message_id)
+    except Exception as e:
+        bot.edit_message_text(f"❌ Помилка фото: {e}", chat_id=message.chat.id, message_id=msg.message_id)
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
@@ -165,7 +193,14 @@ def button_callback(call):
             
         bot.edit_message_text("⏳ Зберігаю в Notion...", chat_id=call.message.chat.id, message_id=call.message.message_id)
         
-        success, error_msg = create_notion_task(task_data["text"], task_data["status"], task_data["priority"], task_data["tag"], task_data["deadline"])
+        success, error_msg = create_notion_task(
+            task_data["text"], 
+            task_data["status"], 
+            task_data["priority"], 
+            task_data["tag"], 
+            task_data["deadline"],
+            task_data.get("image_url") # Передаємо посилання на фото
+        )
         
         if success:
             del user_pending_tasks[user_id]
