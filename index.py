@@ -15,7 +15,9 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
-IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY")
+
+# ВШИЛИ КЛЮЧ ПРЯМО В КОД ДЛЯ 100% НАДІЙНОСТІ
+IMGBB_API_KEY = "a6f01e2115287b5dbd7a28cc37e957d1"
 NOTION_VERSION = "2022-06-28"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
@@ -41,7 +43,6 @@ def create_notion_task(task_text, status, priority, tag, deadline_iso=None, imag
     if deadline_iso: 
         data["properties"]["Deadline"] = {"date": {"start": deadline_iso}}
         
-    # Якщо є фото, додаємо його прямо в тіло сторінки Notion
     if image_url:
         data["children"] = [
             {
@@ -130,7 +131,6 @@ def handle_photo(message):
         imgbb_url = "https://api.imgbb.com/1/upload"
         payload = {"key": IMGBB_API_KEY}
         
-        # ВИПРАВЛЕННЯ: додаємо правильний формат, щоб ImgBB не відхиляв файл
         files = {"image": ("photo.jpg", downloaded_file, "image/jpeg")}
         
         res = requests.post(imgbb_url, data=payload, files=files)
