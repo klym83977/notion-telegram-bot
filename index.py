@@ -162,11 +162,14 @@ def handle_photo(message):
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
+    import os
+    # ВКАЗУЄМО ШЛЯХ ДО /tmp ДЛЯ FFMPG
+    os.environ["STATIC_FFMPEG_CACHE"] = "/tmp/static-ffmpeg"
+    if not os.path.exists("/tmp/static-ffmpeg"):
+        os.makedirs("/tmp/static-ffmpeg")
+        
     msg = bot.send_message(message.chat.id, "🎧 Розпізнаю голос...")
     try:
-        # ВКАЗУЄМО ШЛЯХ ДО /tmp ДЛЯ FFMPG
-        os.environ["STATIC_FFMPEG_CACHE"] = "/tmp/static-ffmpeg"
-        
         from static_ffmpeg import run
         ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise()
         AudioSegment.converter = ffmpeg_exe
