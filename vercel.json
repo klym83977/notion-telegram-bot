@@ -1,14 +1,8 @@
 {
-  "builds": [
+  "crons": [
     {
-      "src": "index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.py"
+      "path": "/api/morning-brief",
+      "schedule": "30 5 * * *"
     }
   ]
 }
