@@ -162,8 +162,11 @@ def handle_photo(message):
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
-    msg = bot.send_message(message.chat.id, "🎧 Слухаю та розпізнаю голос...")
+    msg = bot.send_message(message.chat.id, "🎧 Розпізнаю голос...")
     try:
+        # ВКАЗУЄМО ШЛЯХ ДО /tmp ДЛЯ FFMPG
+        os.environ["STATIC_FFMPEG_CACHE"] = "/tmp/static-ffmpeg"
+        
         from static_ffmpeg import run
         ffmpeg_exe, ffprobe_exe = run.get_or_fetch_platform_executables_else_raise()
         AudioSegment.converter = ffmpeg_exe
@@ -171,10 +174,11 @@ def handle_voice(message):
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as ogg_file:
+        # Використовуємо /tmp для збереження файлів
+        with tempfile.NamedTemporaryFile(dir='/tmp', suffix='.ogg', delete=False) as ogg_file:
             ogg_file.write(downloaded_file)
             ogg_file.flush()
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+            with tempfile.NamedTemporaryFile(dir='/tmp', suffix='.wav', delete=False) as wav_file:
                 audio = AudioSegment.from_ogg(ogg_file.name)
                 audio.export(wav_file.name, format="wav")
                 recognizer = sr.Recognizer()
