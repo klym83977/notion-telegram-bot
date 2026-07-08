@@ -1,7 +1,6 @@
-pyTelegramBotAPI==4.14.1
+pyTelegramBotAPI
 requests
-Flask
+flask
 dateparser
-SpeechRecognition
-pydub
-static-ffmpeg
+speechrecognition
+imageio-ffmpeg
