@@ -63,11 +63,6 @@ def process_task_text(chat_id, user_id, task_text, image_url=None):
         reply_markup=generate_markup(user_pending_tasks[user_id])
     )
 
-@bot.message_handler(content_types=['text'])
-def handle_text(message):
-    process_task_text(message.chat.id, message.from_user.id, message.text)
-from notion import get_todays_tasks # Ви вже маєте цю функцію
-
 @bot.message_handler(commands=['today'])
 def send_todays_tasks(message):
     success, result = get_todays_tasks()
@@ -76,7 +71,12 @@ def send_todays_tasks(message):
         return
 
     # ... (тут логіка формування списку, яку ми писали раніше) ...
-    # Якщо задач немає — пишете: "Сьогодні задач немає, кава чекає!"    
+    # Якщо задач немає — пишете: "Сьогодні задач немає, кава чекає!"  
+
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
+    process_task_text(message.chat.id, message.from_user.id, message.text)
+from notion import get_todays_tasks # Ви вже маєте цю функцію
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
