@@ -27,7 +27,8 @@ def generate_markup(task_data):
     markup.row(btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"), btn("⚡ Середній", "⚡ Середній", task_data['priority'], "priority"), btn("☕ Низький", "☕ Низький", task_data['priority'], "priority"))
 
     markup.row(InlineKeyboardButton("— 🏷️ КАТЕГОРІЯ —", callback_data="ignore"))
-    markup.row(btn("🏠 Дім", "🏠 Дім", task_data['tag'], "tag"), btn("💻 Робота", "💻 Робота", task_data['tag'], "tag"))
+    # Оновлені категорії: Побут та Будівництво
+    markup.row(btn("🏠 Побут", "🏠 Побут", task_data['tag'], "tag"), btn("🏗️ Будівництво", "🏗️ Будівництво", task_data['tag'], "tag"))
     markup.row(btn("🚗 Авто", "🚗 Авто", task_data['tag'], "tag"), btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag"))
 
     markup.row(InlineKeyboardButton("✅ ЗБЕРЕГТИ ЯК ЗАДАЧУ", callback_data="save_task"))
