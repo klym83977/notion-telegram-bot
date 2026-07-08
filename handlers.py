@@ -7,6 +7,7 @@ from dateparser.search import search_dates
 import speech_recognition as sr
 from config import TELEGRAM_TOKEN, IMGBB_API_KEY
 from notion import create_notion_task, create_notion_note
+from notion import create_notion_task, create_notion_note, get_todays_tasks
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
@@ -61,6 +62,29 @@ def process_task_text(chat_id, user_id, task_text, image_url=None):
         f'📝 Текст: "{task_text}"{date_msg}{img_msg}\n\n👇 Налаштуйте параметри і натисніть Зберегти:', 
         reply_markup=generate_markup(user_pending_tasks[user_id])
     )
+    
+@bot.message_handler(commands=['today'])
+def send_todays_tasks(message):
+    bot.send_message(message.chat.id, "⏳ Отримую задачі на сьогодні...")
+    success, result = get_todays_tasks()
+    
+    if not success:
+        bot.send_message(message.chat.id, "❌ Помилка при отриманні задач.")
+        return
+        
+    tasks = []
+    if 'results' in result:
+        for page in result['results']:
+            properties = page.get('properties', {})
+            name = properties.get('Name', {}).get('title', [])
+            task_name = name[0]['text']['content'] if name else "Без назви"
+            tasks.append(f"• {task_name}")
+
+    if not tasks:
+        bot.send_message(message.chat.id, "☀️ Сьогодні у вас немає активних задач. Гарного дня!")
+    else:
+        task_list = "\n".join(tasks)
+        bot.send_message(message.chat.id, f"☀️ Ваші задачі на сьогодні:\n\n{task_list}")
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
