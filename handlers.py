@@ -17,6 +17,10 @@ def get_main_keyboard():
     markup.add(KeyboardButton("📅 Задачі на сьогодні"), KeyboardButton("🔋 Розрахунок SOC"))
     return markup
 
+@bot.message_handler(commands=['start'])
+def start_command(message):
+    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.", reply_markup=get_main_keyboard())
+
 def calculate_target_soc():
     battery_kwh = 16
     array_kwp = 5.4
@@ -68,11 +72,7 @@ def generate_markup(task_data):
     markup.row(InlineKeyboardButton("✅ ЗБЕРЕГТИ ЯК ЗАДАЧУ", callback_data="save_task"))
     markup.row(InlineKeyboardButton("🧠 ЗБЕРЕГТИ ЯК НОТАТКУ", callback_data="save_note"))
     return markup
-
-@bot.message_handler(commands=['start'])
-def start_command(message):
-    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.", reply_markup=get_main_keyboard())    
-    
+     
 def process_task_text(chat_id, user_id, task_text, image_url=None):
     found_dates = search_dates(task_text, languages=['uk', 'ru'], settings={'PREFER_DATES_FROM': 'future'})
     deadline_iso = None
