@@ -12,6 +12,35 @@ from notion import create_notion_task, create_notion_note, get_todays_tasks
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
 
+def calculate_target_soc():
+    battery_kwh = 16
+    array_kwp = 5.4
+    morning_consumption = 2
+    psh = 3.5 # Середній показник PSH
+    
+    if not OPENWEATHER_API_KEY:
+        return None, 0, 0, "API ключ погоди не налаштовано!"
+
+    lat, lon = "49.42", "26.98" 
+    url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
+    
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code != 200:
+            return None, 0, 0, f"Помилка сервера погоди: {res.status_code}"
+            
+        data = res.json()
+        cloud_cover = data['list'][4]['clouds']['all'] 
+        
+        yield_kwh = array_kwp * psh * (1 - (cloud_cover / 100) * 0.75) * 0.9
+        target_kwh = battery_kwh - yield_kwh + morning_consumption
+        
+        target_soc = max(20, min(100, int((target_kwh / battery_kwh) * 100)))
+        
+        return target_soc, yield_kwh, cloud_cover, None
+    except Exception as e:
+        return None, 0, 0, f"Помилка коду: {str(e)}"
+
 def generate_markup(task_data):
     markup = InlineKeyboardMarkup()
     def btn(text, val, current_val, prefix):
