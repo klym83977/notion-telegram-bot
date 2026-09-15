@@ -15,3 +15,5 @@ NOTION_VERSION = "2022-06-28"
 
 if not TELEGRAM_TOKEN:
     logging.error("ПОМИЛКА: Не встановлено TELEGRAM_TOKEN у Vercel!")
+
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
