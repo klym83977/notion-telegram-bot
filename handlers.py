@@ -12,6 +12,11 @@ from notion import create_notion_task, create_notion_note, get_todays_tasks
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
 
+def get_main_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(KeyboardButton("📅 Задачі на сьогодні"), KeyboardButton("🔋 Розрахунок SOC"))
+    return markup
+
 def calculate_target_soc():
     battery_kwh = 16
     array_kwp = 5.4
