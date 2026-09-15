@@ -66,8 +66,8 @@ def generate_markup(task_data):
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
-    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.\nПиши задачі текстом, голосом або надсилай фото з підписом!")
-
+    bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.", reply_markup=get_main_keyboard())    
+    
 def process_task_text(chat_id, user_id, task_text, image_url=None):
     found_dates = search_dates(task_text, languages=['uk', 'ru'], settings={'PREFER_DATES_FROM': 'future'})
     deadline_iso = None
@@ -117,8 +117,46 @@ def send_todays_tasks(message):
         bot.send_message(message.chat.id, f"☀️ Ваші задачі на сьогодні:\n\n{task_list}")
 
 @bot.message_handler(content_types=['text'])
+@bot.message_handler(content_types=['text'])
 def handle_text(message):
-    process_task_text(message.chat.id, message.from_user.id, message.text)
+    text = message.text
+    
+    if text == "📅 Задачі на сьогодні":
+        bot.send_message(message.chat.id, "⏳ Отримую задачі на сьогодні...")
+        success, result = get_todays_tasks()
+        
+        if not success:
+            bot.send_message(message.chat.id, "❌ Помилка при отриманні задач.")
+            return
+            
+        tasks = []
+        if 'results' in result:
+            for page in result['results']:
+                props = page.get('properties', {})
+                name = props.get('Name', {}).get('title', [{}])
+                task_name = name[0]['text']['content'] if name else "Без назви"
+                tasks.append(f"• {task_name}")
+
+        if not tasks:
+            bot.send_message(message.chat.id, "☀️ Сьогодні у вас немає активних задач. Гарного дня!")
+        else:
+            bot.send_message(message.chat.id, f"☀️ Ваші задачі на сьогодні:\n\n" + "\n".join(tasks))
+            
+    elif text == "🔋 Розрахунок SOC":
+        bot.send_message(message.chat.id, "⏳ Отримую прогноз погоди та розраховую генерацію...")
+        target_soc, yield_kwh, clouds, err = calculate_target_soc()
+        
+        if err:
+            bot.send_message(message.chat.id, f"❌ {err}")
+        else:
+            msg = (f"🔋 <b>Нічний ліміт зарядки (Deye)</b>\n\n"
+                   f"Встанови на ніч: <b>{target_soc}%</b>\n\n"
+                   f"<i>Очікувана генерація: {yield_kwh:.1f} кВт·год (Хмарність {clouds}%)</i>")
+            bot.send_message(message.chat.id, msg, parse_mode="HTML")
+            
+    else:
+        # Якщо це звичайний текст, сприймаємо як нову задачу
+        process_task_text(message.chat.id, message.from_user.id, text)
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
