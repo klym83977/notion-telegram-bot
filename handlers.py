@@ -2,7 +2,7 @@ import os
 import subprocess
 import requests
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from dateparser.search import search_dates
 import speech_recognition as sr
 from config import TELEGRAM_TOKEN, IMGBB_API_KEY, OPENWEATHER_API_KEY
