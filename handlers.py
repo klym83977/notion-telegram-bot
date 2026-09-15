@@ -5,7 +5,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dateparser.search import search_dates
 import speech_recognition as sr
-from config import TELEGRAM_TOKEN, IMGBB_API_KEY
+from config import TELEGRAM_TOKEN, IMGBB_API_KEY, OPENWEATHER_API_KEY
 from notion import create_notion_task, create_notion_note
 from notion import create_notion_task, create_notion_note, get_todays_tasks
 
