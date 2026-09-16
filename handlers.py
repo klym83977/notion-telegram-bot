@@ -172,9 +172,8 @@ def handle_text(message):
                     bot.send_message(message.chat.id, msg, parse_mode="HTML")
             except Exception as e:
                 # Якщо стається збій, бот скаже про це і не піде в петлю!
-                bot.send_message(message.chat.id, f"❌ Внутрішня помилка: {e}")
-                
-     else:
+                bot.send_message(message.chat.id, f"❌ Внутрішня помилка: {e}")            
+                else:
             # Якщо це звичайний текст, сприймаємо як нову задачу
             process_task_text(message.chat.id, message.from_user.id, text)
 
