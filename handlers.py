@@ -42,10 +42,39 @@ def calculate_target_soc():
             return None, 0, 0, None, f"Помилка сервера погоди: {res.status_code}"
             
         data = res.json()
-        cloud_cover = data['list'][4]['clouds']['all'] 
         
-        # Витягуємо дату
-        raw_date = data['list'][4]['dt_txt']
+        # Визначаємо поточний український час (Vercel працює в UTC, додаємо 3 години)
+        from datetime import datetime, timedelta
+        now_ukraine = datetime.utcnow() + timedelta(hours=3)
+        
+        # ЛОГІКА ДАТИ:
+        # Якщо зараз від опівночі до 7 ранку -> беремо прогноз на СЬОГОДНІ
+        # Якщо зараз після 7 ранку -> беремо прогноз на ЗАВТРА
+        if now_ukraine.hour < 7:
+            target_date_str = now_ukraine.strftime("%Y-%m-%d")
+        else:
+            target_date_str = (now_ukraine + timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # Шукаємо прогноз саме на потрібний день на 12:00 дня
+        target_forecast = None
+        for item in data['list']:
+            if item['dt_txt'].startswith(target_date_str) and "12:00:00" in item['dt_txt']:
+                target_forecast = item
+                break
+                
+        # (Запобіжник) Якщо 12:00 немає, беремо 09:00 або 15:00
+        if not target_forecast:
+            for item in data['list']:
+                if item['dt_txt'].startswith(target_date_str) and ("09:00:00" in item['dt_txt'] or "15:00:00" in item['dt_txt']):
+                    target_forecast = item
+                    break
+
+        if not target_forecast:
+            return None, 0, 0, None, f"Не знайшов денного прогнозу на {target_date_str}!"
+
+        cloud_cover = target_forecast['clouds']['all'] 
+        
+        raw_date = target_forecast['dt_txt']
         date_obj = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
         forecast_date = date_obj.strftime("%d.%m.%Y")
         
@@ -58,7 +87,6 @@ def calculate_target_soc():
         return target_soc, yield_kwh, cloud_cover, forecast_date, None
     except Exception as e:
         return None, 0, 0, None, f"Помилка коду: {str(e)}"
-
 def generate_markup(task_data):
     markup = InlineKeyboardMarkup()
     def btn(text, val, current_val, prefix):
