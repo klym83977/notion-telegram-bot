@@ -157,25 +157,26 @@ def handle_text(message):
             bot.send_message(message.chat.id, f"☀️ Ваші задачі на сьогодні:\n\n" + "\n".join(tasks))
             
     elif text == "🔋 Розрахунок SOC":
-            bot.send_message(message.chat.id, "⏳ Отримую прогноз погоди та розраховую генерацію...")
-            try:
-                # Отримуємо рівно 5 змінних
-                target_soc, yield_kwh, clouds, forecast_date, err = calculate_target_soc()
-                
-                if err:
-                    bot.send_message(message.chat.id, f"❌ {err}")
-                else:
-                    msg = (f"📅 Прогноз на: <b>{forecast_date}</b>\n"
-                           f"🔋 <b>Нічний ліміт зарядки (Deye)</b>\n\n"
-                           f"Встанови на ніч: <b>{target_soc}%</b>\n\n"
-                           f"<i>Очікувана генерація: {yield_kwh:.1f} кВт·год (Хмарність {clouds}%)</i>")
-                    bot.send_message(message.chat.id, msg, parse_mode="HTML")
-            except Exception as e:
-                # Якщо стається збій, бот скаже про це і не піде в петлю!
-                bot.send_message(message.chat.id, f"❌ Внутрішня помилка: {e}")            
-                else:
-            # Якщо це звичайний текст, сприймаємо як нову задачу
-            process_task_text(message.chat.id, message.from_user.id, text)
+        bot.send_message(message.chat.id, "⏳ Отримую прогноз погоди та розраховую генерацію...")
+        try:
+            # Отримуємо рівно 5 змінних
+            target_soc, yield_kwh, clouds, forecast_date, err = calculate_target_soc()
+            
+            if err:
+                bot.send_message(message.chat.id, f"❌ {err}")
+            else:
+                msg = (f"📅 Прогноз на: <b>{forecast_date}</b>\n"
+                       f"🔋 <b>Нічний ліміт зарядки (Deye)</b>\n\n"
+                       f"Встанови на ніч: <b>{target_soc}%</b>\n\n"
+                       f"<i>Очікувана генерація: {yield_kwh:.1f} кВт·год (Хмарність {clouds}%)</i>")
+                bot.send_message(message.chat.id, msg, parse_mode="HTML")
+        except Exception as e:
+            # Якщо стається збій, бот скаже про це і не піде в петлю!
+            bot.send_message(message.chat.id, f"❌ Внутрішня помилка: {e}")
+            
+    else:
+        # Якщо це звичайний текст, сприймаємо як нову задачу
+        process_task_text(message.chat.id, message.from_user.id, text)
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
