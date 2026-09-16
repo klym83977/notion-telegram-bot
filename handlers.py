@@ -22,6 +22,8 @@ def get_main_keyboard():
 def start_command(message):
     bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.", reply_markup=get_main_keyboard())
 
+from datetime import datetime # Додайте це в самий верх файлу, де всі import!
+
 def calculate_target_soc():
     battery_kwh = 16
     array_kwp = 5.4
@@ -29,7 +31,7 @@ def calculate_target_soc():
     psh = 3.5 # Середній показник PSH
     
     if not OPENWEATHER_API_KEY:
-        return None, 0, 0, "API ключ погоди не налаштовано!"
+        return None, 0, 0, None, "API ключ погоди не налаштовано!"
 
     lat, lon = "49.42", "26.98" 
     url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
@@ -37,19 +39,26 @@ def calculate_target_soc():
     try:
         res = requests.get(url, timeout=5)
         if res.status_code != 200:
-            return None, 0, 0, f"Помилка сервера погоди: {res.status_code}"
+            return None, 0, 0, None, f"Помилка сервера погоди: {res.status_code}"
             
         data = res.json()
         cloud_cover = data['list'][4]['clouds']['all'] 
         
+        # ВИТЯГУЄМО ДАТУ ПРОГНОЗУ з API (він повертає "2026-09-17 12:00:00")
+        raw_date = data['list'][4]['dt_txt']
+        date_obj = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
+        forecast_date = date_obj.strftime("%d.%m.%Y")
+        
         yield_kwh = array_kwp * psh * (1 - (cloud_cover / 100) * 0.75) * 0.9
         target_kwh = battery_kwh - yield_kwh + morning_consumption
         
-        target_soc = max(20, min(100, int((target_kwh / battery_kwh) * 100)))
+        # ЗМІНЕНО МІНІМАЛЬНИЙ ЗАЛИШОК НА 30%
+        target_soc = max(30, min(100, int((target_kwh / battery_kwh) * 100)))
         
-        return target_soc, yield_kwh, cloud_cover, None
+        # Тепер функція повертає 5 значень (додали forecast_date)
+        return target_soc, yield_kwh, cloud_cover, forecast_date, None
     except Exception as e:
-        return None, 0, 0, f"Помилка коду: {str(e)}"
+        return None, 0, 0, None, f"Помилка коду: {str(e)}"
 
 def generate_markup(task_data):
     markup = InlineKeyboardMarkup()
