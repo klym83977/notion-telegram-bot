@@ -131,7 +131,6 @@ def send_todays_tasks(message):
         bot.send_message(message.chat.id, f"☀️ Ваші задачі на сьогодні:\n\n{task_list}")
 
 @bot.message_handler(content_types=['text'])
-@bot.message_handler(content_types=['text'])
 def handle_text(message):
     text = message.text
     
