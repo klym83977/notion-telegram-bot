@@ -2,14 +2,14 @@ import os
 import subprocess
 import requests
 import telebot
-from deye_api import get_test_connection
 from datetime import datetime, timedelta
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from dateparser.search import search_dates
 import speech_recognition as sr
+from dateparser.search import search_dates
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+
 from config import TELEGRAM_TOKEN, IMGBB_API_KEY, OPENWEATHER_API_KEY
-from notion import create_notion_task, create_notion_note
 from notion import create_notion_task, create_notion_note, get_todays_tasks
+from deye_api import get_test_connection
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 user_pending_tasks = {}
@@ -23,7 +23,12 @@ def get_main_keyboard():
 def start_command(message):
     bot.send_message(message.chat.id, "✅ Привіт! Я твій розумний асистент.", reply_markup=get_main_keyboard())
 
-from datetime import datetime # Додайте це в самий верх файлу, де всі import!
+# --- ТЕСТОВИЙ ЗАПИТ ДО DEYE CLOUD ---
+@bot.message_handler(commands=['deye_test'])
+def test_deye_command(message):
+    bot.send_message(message.chat.id, "⏳ Стукаю в Deye Cloud...")
+    result_text = get_test_connection()
+    bot.send_message(message.chat.id, result_text)
 
 def calculate_target_soc():
     battery_kwh = 16
@@ -45,7 +50,6 @@ def calculate_target_soc():
         data = res.json()
         
         # Визначаємо поточний український час (Vercel працює в UTC, додаємо 3 години)
-        from datetime import datetime, timedelta
         now_ukraine = datetime.utcnow() + timedelta(hours=3)
         
         # ЛОГІКА ДАТИ:
@@ -88,6 +92,7 @@ def calculate_target_soc():
         return target_soc, yield_kwh, cloud_cover, forecast_date, None
     except Exception as e:
         return None, 0, 0, None, f"Помилка коду: {str(e)}"
+
 def generate_markup(task_data):
     markup = InlineKeyboardMarkup()
     def btn(text, val, current_val, prefix):
@@ -103,7 +108,6 @@ def generate_markup(task_data):
     markup.row(btn("🔥 Високий", "🔥 Високий", task_data['priority'], "priority"), btn("⚡ Середній", "⚡ Середній", task_data['priority'], "priority"), btn("☕ Низький", "☕ Низький", task_data['priority'], "priority"))
 
     markup.row(InlineKeyboardButton("— 🏷️ КАТЕГОРІЯ —", callback_data="ignore"))
-    # Оновлені категорії: Побут та Будівництво
     markup.row(btn("🏠 Побут", "🏠 Побут", task_data['tag'], "tag"), btn("🏗️ Будівництво", "🏗️ Будівництво", task_data['tag'], "tag"))
     markup.row(btn("🚗 Авто", "🚗 Авто", task_data['tag'], "tag"), btn("🛠️ DIY", "🛠️ DIY", task_data['tag'], "tag"))
 
@@ -187,7 +191,6 @@ def handle_text(message):
     elif text == "🔋 Розрахунок SOC":
         bot.send_message(message.chat.id, "⏳ Отримую прогноз погоди та розраховую генерацію...")
         try:
-            # Отримуємо рівно 5 змінних
             target_soc, yield_kwh, clouds, forecast_date, err = calculate_target_soc()
             
             if err:
@@ -199,11 +202,9 @@ def handle_text(message):
                        f"<i>Очікувана генерація: {yield_kwh:.1f} кВт·год (Хмарність {clouds}%)</i>")
                 bot.send_message(message.chat.id, msg, parse_mode="HTML")
         except Exception as e:
-            # Якщо стається збій, бот скаже про це і не піде в петлю!
             bot.send_message(message.chat.id, f"❌ Внутрішня помилка: {e}")
             
     else:
-        # Якщо це звичайний текст, сприймаємо як нову задачу
         process_task_text(message.chat.id, message.from_user.id, text)
 
 @bot.message_handler(content_types=['photo'])
