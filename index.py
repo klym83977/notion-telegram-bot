@@ -4,6 +4,7 @@ import telebot
 from config import YOUR_TELEGRAM_CHAT_ID
 from handlers import bot
 from notion import get_todays_tasks
+from .deye_api import get_test_connection
 
 app = Flask(__name__)
 application = app
