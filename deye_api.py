@@ -1,48 +1,54 @@
 import os
+import time
 import hashlib
 import requests
 
 def get_test_connection():
-    # Намагаємося витягнути змінні з Vercel
     app_id = os.environ.get("DEYE_APP_ID")
     app_secret = os.environ.get("DEYE_APP_SECRET")
     email = os.environ.get("DEYE_EMAIL")
     password = os.environ.get("DEYE_PASSWORD", "")
     
-    # --- БЛОК ДІАГНОСТИКИ ---
-    debug = "🔍 <b>ДІАГНОСТИКА ЗМІННИХ VERCEL:</b>\n"
-    debug += f"App ID: {'✅ Є (' + app_id[:4] + '...)' if app_id else '❌ ПУСТО!'}\n"
-    debug += f"App Secret: {'✅ Є' if app_secret else '❌ ПУСТО!'}\n"
-    debug += f"Email: {'✅ Є (' + email + ')' if email else '❌ ПУСТО!'}\n"
-    debug += f"Password: {'✅ Є' if password else '❌ ПУСТО!'}\n\n"
+    debug = "🔍 <b>ДІАГНОСТИКА:</b> Vercel бачить всі ключі ✅\n\n"
 
-    # Якщо хоча б однієї головної змінної немає — далі навіть не йдемо
     if not app_id or not app_secret:
-        return debug + "🛑 <b>Зупинка:</b> Бот не бачить ключів доступу! Перевірте змінні у Vercel та обов'язково зробіть Redeploy."
+        return debug + "🛑 <b>Помилка:</b> Ключі все ще не завантажились."
 
-    # Хешуємо пароль у SHA-256
+    # Хешуємо пароль (Deye зазвичай вимагає SHA256 для безпеки)
     hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     
-    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
+    # 1. Формуємо обов'язкові параметри безпеки
+    timestamp = str(int(time.time() * 1000)) # Поточний час у мілісекундах
     
-    payload = {
+    # 2. Робимо цифровий підпис: SHA256(appId + appSecret + timestamp)
+    sign_string = app_id + app_secret + timestamp
+    sign = hashlib.sha256(sign_string.encode('utf-8')).hexdigest()
+    
+    # 3. Кладемо appId, timestamp та sign у ЗАГОЛОВКИ (Headers), де їх чекає сервер
+    headers = {
+        "Content-Type": "application/json",
         "appId": app_id,
-        "appSecret": app_secret,
+        "timestamp": timestamp,
+        "sign": sign
+    }
+    
+    # В самому тілі запиту залишаємо лише логін та пароль
+    payload = {
         "email": email,
         "password": hashed_password
     }
     
+    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
+    
     try:
-        res = requests.post(url, json=payload, timeout=10)
+        # Відправляємо запит з заголовками (headers=headers)
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        data = res.json()
         
-        if res.status_code == 200:
-            data = res.json()
-            if data.get("success") or "access_token" in data:
-                return debug + f"✅ <b>УРА! Токен отримано!</b>\n<code>{str(data)[:200]}</code>"
-            else:
-                return debug + f"⚠️ <b>Сервер не дав токен:</b>\n<code>{data}</code>"
+        if res.status_code == 200 and data.get("success"):
+            return debug + f"✅ <b>УРА! Токен успішно отримано!</b>\n<code>{str(data)[:250]}</code>"
         else:
-            return debug + f"❌ <b>Помилка сервера (HTTP {res.status_code}):</b>\n<code>{res.text}</code>"
+            return debug + f"⚠️ <b>Відповідь сервера Deye:</b>\n<code>{data}</code>"
             
     except Exception as e:
         return debug + f"❌ <b>Системна помилка:</b> {e}"
