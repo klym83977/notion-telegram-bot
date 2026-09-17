@@ -2,6 +2,7 @@ import os
 import subprocess
 import requests
 import telebot
+from deye_api import get_test_connection
 from datetime import datetime, timedelta
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from dateparser.search import search_dates
