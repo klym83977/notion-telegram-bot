@@ -13,7 +13,7 @@ def get_test_connection():
     # Хешуємо пароль у SHA-256
     hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     
-    url = "https://eu1.developer.deyecloud.com/v1.0/account/token"
+    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
     
     payload = {
         "appId": app_id,
