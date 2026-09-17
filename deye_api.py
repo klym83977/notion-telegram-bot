@@ -1,5 +1,4 @@
 import os
-import time
 import hashlib
 import requests
 
@@ -12,36 +11,26 @@ def get_test_connection():
     debug = "🔍 <b>ДІАГНОСТИКА:</b> Vercel бачить всі ключі ✅\n\n"
 
     if not app_id or not app_secret:
-        return debug + "🛑 <b>Помилка:</b> Ключі все ще не завантажились."
+        return debug + "🛑 <b>Помилка:</b> Ключі не завантажились."
 
-    # Хешуємо пароль (Deye зазвичай вимагає SHA256 для безпеки)
-    hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    # Пароль має бути зашифрований у SHA-256 і обов'язково в нижньому регістрі
+    hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest().lower()
     
-    # 1. Формуємо обов'язкові параметри безпеки
-    timestamp = str(int(time.time() * 1000)) # Поточний час у мілісекундах
+    # appId передається виключно як параметр в URL
+    url = f"https://eu1-developer.deyecloud.com/v1.0/account/token?appId={app_id}"
     
-    # 2. Робимо цифровий підпис: SHA256(appId + appSecret + timestamp)
-    sign_string = app_id + app_secret + timestamp
-    sign = hashlib.sha256(sign_string.encode('utf-8')).hexdigest()
-    
-    # 3. Кладемо appId, timestamp та sign у ЗАГОЛОВКИ (Headers), де їх чекає сервер
-    headers = {
-        "Content-Type": "application/json",
-        "appId": app_id,
-        "timestamp": timestamp,
-        "sign": sign
-    }
-    
-    # В самому тілі запиту залишаємо лише логін та пароль
+    # Все інше йде в тіло запиту
     payload = {
+        "appSecret": app_secret,
         "email": email,
         "password": hashed_password
     }
     
-    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
+    headers = {
+        "Content-Type": "application/json"
+    }
     
     try:
-        # Відправляємо запит з заголовками (headers=headers)
         res = requests.post(url, json=payload, headers=headers, timeout=10)
         data = res.json()
         
