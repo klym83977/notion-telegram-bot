@@ -8,11 +8,10 @@ def get_station_list():
     if not deye_key:
         return "❌ Помилка: DEYE_CLOUD_KEY не знайдено у змінних Vercel!"
     
-    # Офіційний європейський сервер розробників
     url = "https://eu1-developer.deyecloud.com/v1.0/station/list"
     
+    # Використовуємо лише стандартний для Deye заголовок 'token' без Bearer
     headers = {
-        "Authorization": f"Bearer {deye_key}",
         "token": deye_key,
         "Content-Type": "application/json"
     }
@@ -34,6 +33,4 @@ def get_station_list():
     except Exception as e:
         return f"❌ Помилка з'єднання: {e}"
 
-# Явно оголошуємо обидві функції, щобhandlers.py не видавав помилку імпорту
-def get_test_connection():
-    return get_station_list()
+get_test_connection = get_station_list
