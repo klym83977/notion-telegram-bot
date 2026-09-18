@@ -34,3 +34,4 @@ def get_station_list():
             
     except Exception as e:
         return f"❌ Помилка з'єднання: {e}"
+get_test_connection = get_station_list
