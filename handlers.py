@@ -26,9 +26,16 @@ def start_command(message):
 # --- ТЕСТОВИЙ ЗАПИТ ДО DEYE CLOUD ---
 @bot.message_handler(commands=['deye_test'])
 def test_deye_command(message):
-    bot.send_message(message.chat.id, "⏳ Стукаю в Deye Cloud...")
+    msg = bot.send_message(message.chat.id, "⏳ Стукаю в Deye Cloud...")
     result_text = get_test_connection()
-    bot.send_message(message.chat.id, result_text)
+    
+    # Виводимо відповідь красиво, у вигляді коду
+    bot.edit_message_text(
+        f"Відповідь сервера:\n```json\n{result_text}\n```", 
+        chat_id=message.chat.id, 
+        message_id=msg.message_id, 
+        parse_mode="Markdown"
+    )
 
 def calculate_target_soc():
     battery_kwh = 16
@@ -53,8 +60,6 @@ def calculate_target_soc():
         now_ukraine = datetime.utcnow() + timedelta(hours=3)
         
         # ЛОГІКА ДАТИ:
-        # Якщо зараз від опівночі до 7 ранку -> беремо прогноз на СЬОГОДНІ
-        # Якщо зараз після 7 ранку -> беремо прогноз на ЗАВТРА
         if now_ukraine.hour < 7:
             target_date_str = now_ukraine.strftime("%Y-%m-%d")
         else:
