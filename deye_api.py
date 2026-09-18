@@ -4,50 +4,50 @@ import json
 import hashlib
 
 def get_station_list():
-    # Дістаємо пошту і пароль з Vercel
+    # Збираємо всі необхідні змінні з Vercel
+    app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
     email = os.environ.get("DEYE_EMAIL", "").strip()
     password = os.environ.get("DEYE_PASSWORD", "").strip()
     
-    if not email or not password:
-        return "❌ Помилка: DEYE_EMAIL або DEYE_PASSWORD не знайдено у змінних Vercel!"
+    # Ваш App ID
+    app_id = "202609161815072"
     
-    # 1. Створюємо SHA256 хеш пароля (так вимагає додаток Deye/Solarman)
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    if not all([app_secret, email, password]):
+        return "❌ Помилка: Переконайтеся, що DEYE_CLOUD_KEY, DEYE_EMAIL та DEYE_PASSWORD додані у Vercel!"
     
-    # URL для авторизації (мобільний API Solarman)
+    # Хешуємо пароль у SHA256 (вимога API)
+    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    
+    # --- КРОК 1: АВТОРИЗАЦІЯ ---
     auth_url = "https://globalapi.solarmanpv.com/account/v1.0/token"
     
+    # Передаємо повний набір параметрів
     auth_payload = {
-        "appSecret": "1001",  # Стандартний секрет мобільного додатку
+        "appId": app_id,
+        "appSecret": app_secret,
         "email": email,
         "password": password_hash
     }
     
-    # Маскуємося під додаток
-    auth_headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Solarman/1.0"
+    headers = {
+        "Content-Type": "application/json"
     }
     
     try:
-        # --- КРОК 1: АВТОРИЗАЦІЯ ---
-        auth_res = requests.post(auth_url, json=auth_payload, headers=auth_headers, timeout=10)
+        auth_res = requests.post(auth_url, json=auth_payload, headers=headers, timeout=10)
         auth_data = auth_res.json()
         
         if not auth_data.get("success"):
             return f"⚠️ <b>Помилка авторизації (Крок 1):</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
             
         token = auth_data.get("access_token")
-        if not token:
-             return f"⚠️ <b>Токен не знайдено у відповіді:</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
-             
+        
         # --- КРОК 2: ОТРИМАННЯ СТАНЦІЙ ---
         station_url = "https://globalapi.solarmanpv.com/station/v1.0/list"
         
         station_headers = {
             "Authorization": f"bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "Solarman/1.0"
+            "Content-Type": "application/json"
         }
         
         station_payload = {
@@ -66,4 +66,5 @@ def get_station_list():
     except Exception as e:
         return f"❌ Системна помилка: {e}"
 
+# Зв'язуємо функції для сумісності
 get_test_connection = get_station_list
