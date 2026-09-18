@@ -1,11 +1,9 @@
 import os
 import requests
 
-# Дістаємо ключ глобально для цього файлу
 DEYE_KEY = os.environ.get("DEYE_CLOUD_KEY")
 
-def get_station_list():
-    """Тестовий запит для отримання списку станцій."""
+def get_test_connection():
     if not DEYE_KEY:
         return "❌ Помилка: DEYE_CLOUD_KEY не знайдено у змінних Vercel!"
     
@@ -23,7 +21,6 @@ def get_station_list():
     
     try:
         response = requests.post(url, headers=headers, json=payload)
-        # Повертаємо сирий текст відповіді для тесту
         return response.text 
     except Exception as e:
         return f"❌ Помилка з'єднання: {e}"
