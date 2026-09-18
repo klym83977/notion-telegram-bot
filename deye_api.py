@@ -1,58 +1,52 @@
 import os
-import hashlib
 import requests
+import hashlib
 
-def get_test_connection():
-    app_id_str = os.environ.get("DEYE_APP_ID", "").strip()
-    app_secret = os.environ.get("DEYE_APP_SECRET", "").strip()
-    email = os.environ.get("DEYE_EMAIL", "").strip()
-    password = os.environ.get("DEYE_PASSWORD", "").strip()
-    
-    debug = f"🔍 <b>АНАЛІЗ:</b> Ключ ідеальний. Шукаємо формат...\n\n"
+# Якщо використовуєш файл .env, розкоментуй наступні два рядки:
+# from dotenv import load_dotenv
+# load_dotenv()
 
-    if not app_id_str or not app_secret:
-        return debug + "🛑 <b>Помилка:</b> Ключі відсутні у Vercel."
+# 1. Підтягуємо дані зі змінних оточення
+APP_ID = os.getenv("DEYE_APP_ID")
+APP_SECRET = os.getenv("DEYE_APP_SECRET")
+DEYE_EMAIL = os.getenv("DEYE_EMAIL")
+DEYE_PASSWORD_PLAIN = os.getenv("DEYE_PASSWORD")
 
-    # Пароль у SHA-256 (нижній регістр)
-    hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest().lower()
+if not all([APP_ID, APP_SECRET, DEYE_EMAIL, DEYE_PASSWORD_PLAIN]):
+    print("Помилка: Не всі змінні оточення завантажені!")
+    exit(1)
+
+# 2. Хешування пароля в SHA-256 (нижній регістр)
+password_sha256 = hashlib.sha256(DEYE_PASSWORD_PLAIN.encode('utf-8')).hexdigest().lower()
+
+# 3. Формування URL з appId в адресному рядку
+url = f'https://eu1-developer.deyecloud.com/v1.0/account/token?appId={APP_ID}'
+
+# 4. Формування заголовків та тіла
+headers = {
+    'Content-Type': 'application/json'
+}
+data = {
+    "appSecret": APP_SECRET,
+    "email": DEYE_EMAIL,
+    "password": password_sha256
+}
+
+# 5. Відправка POST запиту
+try:
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
     
-    # Перетворюємо App ID на число (Integer) для перевірки бази даних
-    try:
-        app_id_int = int(app_id_str)
-    except:
-        app_id_int = app_id_str
+    response_data = response.json()
     
-    # Тестуємо головні сервери для вашого Data Center (EMEA)
-    urls = [
-        "https://eu1-developer.deyecloud.com/v1.0/account/token",
-        "https://developer.deyecloud.com/v1.0/account/token",
-        "https://eu.deyecloud.com/v1.0/account/token"
-    ]
-    
-    for url in urls:
-        domain = url.split('//')[1].split('/')[0]
-        debug += f"🌐 <b>{domain}</b>\n"
+    if response_data.get("success"):
+        access_token = response_data.get("accessToken")
+        print(f"УСПІХ! Отримано Access Token:\n{access_token}")
+    else:
+        print(f"Помилка API: {response_data}")
         
-        # Тестуємо два формати: як Число і як Текст
-        for typ, app_id_val in [("Як ЧИСЛО", app_id_int), ("Як ТЕКСТ", app_id_str)]:
-            payload = {
-                "appId": app_id_val,
-                "appSecret": app_secret,
-                "email": email,
-                "password": hashed_password
-            }
-            
-            try:
-                res = requests.post(url, json=payload, timeout=5)
-                data = res.json()
-                
-                if res.status_code == 200 and data.get("success"):
-                    return debug + f"✅ <b>УРА! БІНГО!</b>\nСервер: {domain}\nФормат: {typ}\n<code>{str(data)[:250]}</code>"
-                else:
-                    msg = data.get('msg', 'Помилка')
-                    debug += f"  ├ {typ}: {msg}\n"
-            except Exception as e:
-                debug += f"  ├ {typ}: Немає зв'язку\n"
-        debug += "\n"
-            
-    return debug + "🛑 Жоден формат не підійшов. Якщо ви створили App ID сьогодні чи вчора, є висока ймовірність, що сервери Deye ще не синхронізували його (це може займати до 24 годин)."
+except requests.exceptions.HTTPError as err:
+    print(f"HTTP помилка: {err}")
+    print(f"Детальна відповідь сервера: {response.text}")
+except Exception as err:
+    print(f"Помилка з'єднання: {err}")
