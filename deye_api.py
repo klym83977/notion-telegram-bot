@@ -1,41 +1,53 @@
 import os
 import requests
 import json
+import hashlib
 
 def get_station_list():
-    app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
-    app_id = "202609161815072"  # Ваш App ID з попередніх запитів
+    # Дістаємо пошту і пароль з Vercel
+    email = os.environ.get("DEYE_EMAIL", "").strip()
+    password = os.environ.get("DEYE_PASSWORD", "").strip()
     
-    if not app_secret:
-        return "❌ Помилка: DEYE_CLOUD_KEY не знайдено у змінних Vercel!"
+    if not email or not password:
+        return "❌ Помилка: DEYE_EMAIL або DEYE_PASSWORD не знайдено у змінних Vercel!"
     
-    # --- КРОК 1: АВТОРИЗАЦІЯ (Отримання токена) ---
-    auth_url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
+    # 1. Створюємо SHA256 хеш пароля (так вимагає додаток Deye/Solarman)
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    # URL для авторизації (мобільний API Solarman)
+    auth_url = "https://globalapi.solarmanpv.com/account/v1.0/token"
     
     auth_payload = {
-        "appId": app_id,
-        "appSecret": app_secret
+        "appSecret": "1001",  # Стандартний секрет мобільного додатку
+        "email": email,
+        "password": password_hash
+    }
+    
+    # Маскуємося під додаток
+    auth_headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Solarman/1.0"
     }
     
     try:
-        auth_res = requests.post(auth_url, json=auth_payload, timeout=10)
+        # --- КРОК 1: АВТОРИЗАЦІЯ ---
+        auth_res = requests.post(auth_url, json=auth_payload, headers=auth_headers, timeout=10)
         auth_data = auth_res.json()
         
-        # Перевіряємо, чи успішно отримали токен
         if not auth_data.get("success"):
             return f"⚠️ <b>Помилка авторизації (Крок 1):</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
             
-        # Дістаємо сам токен з відповіді
-        token = auth_data.get("data", {}).get("token")
+        token = auth_data.get("access_token")
         if not token:
              return f"⚠️ <b>Токен не знайдено у відповіді:</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
              
         # --- КРОК 2: ОТРИМАННЯ СТАНЦІЙ ---
-        station_url = "https://eu1-developer.deyecloud.com/v1.0/station/list"
+        station_url = "https://globalapi.solarmanpv.com/station/v1.0/list"
         
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+        station_headers = {
+            "Authorization": f"bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "Solarman/1.0"
         }
         
         station_payload = {
@@ -43,7 +55,7 @@ def get_station_list():
             "limit": 10
         }
         
-        stat_res = requests.post(station_url, headers=headers, json=station_payload, timeout=10)
+        stat_res = requests.post(station_url, headers=station_headers, json=station_payload, timeout=10)
         stat_data = stat_res.json()
         
         if stat_res.status_code == 200 and stat_data.get("success"):
@@ -54,5 +66,4 @@ def get_station_list():
     except Exception as e:
         return f"❌ Системна помилка: {e}"
 
-# Аліас для сумісності з вашим handlers.py
 get_test_connection = get_station_list
