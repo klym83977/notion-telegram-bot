@@ -4,19 +4,19 @@ import json
 import hashlib
 
 def get_test_connection():
-    # Виправлена адреса: дефіс замість крапки!
-    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
-    
     app_id = "202609161815072"
     app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
     email = os.environ.get("DEYE_EMAIL", "").strip()
     password = os.environ.get("DEYE_PASSWORD", "").strip()
     
-    # Deye зазвичай вимагає пароль у форматі SHA-256
+    # Пароль має бути зашифрований у SHA-256 (нижній регістр)
     pass_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
     
+    # КЛЮЧОВА ЗМІНА: appId передається прямо в URL
+    url = f"https://eu1-developer.deyecloud.com/v1.0/account/token?appId={app_id}"
+    
+    # З тіла запиту appId прибрано, тут залишається лише секрет і логін
     payload = {
-        "appId": app_id,
         "appSecret": app_secret,
         "email": email,
         "password": pass_hash
