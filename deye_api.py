@@ -4,8 +4,8 @@ import json
 import hashlib
 
 def get_test_connection():
-    # Використовуємо класичний API прямо з вашої документації
-    url = "https://eu1.developer.deyecloud.com/v1.0/account/token"
+    # Виправлена адреса: дефіс замість крапки!
+    url = "https://eu1-developer.deyecloud.com/v1.0/account/token"
     
     app_id = "202609161815072"
     app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
