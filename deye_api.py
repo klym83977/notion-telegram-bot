@@ -1,74 +1,58 @@
+Python
 import os
 import requests
 import json
 import hashlib
 
-def get_station_list():
-    # Збираємо всі необхідні змінні з Vercel
+def test_all_servers():
     app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
     email = os.environ.get("DEYE_EMAIL", "").strip()
     password = os.environ.get("DEYE_PASSWORD", "").strip()
-    
-    # Ваш App ID
     app_id = "202609161815072"
     
     if not all([app_secret, email, password]):
-        return "❌ Помилка: Переконайтеся, що DEYE_CLOUD_KEY, DEYE_EMAIL та DEYE_PASSWORD додані у Vercel!"
+        return "❌ Помилка: Не всі ключі додані у Vercel!"
+        
+    # Хешуємо пароль (обов'язково нижній регістр)
+    pass_hash = hashlib.sha256(password.encode('utf-8')).hexdigest().lower()
     
-    # Хешуємо пароль у SHA256 і обов'язково переводимо в нижній регістр (вимога Deye)
-    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest().lower()
-    
-    # --- КРОК 1: АВТОРИЗАЦІЯ ---
-    # УВАГА: Deye вимагає передавати appId саме в URL посилання!
-    auth_url = f"https://eu1-developer.deyecloud.com/v1.0/account/token?appId={app_id}"
-    
-    auth_payload = {
+    # Даємо appId і в тіло запиту (для Solarman), і в URL (для Deye)
+    payload = {
+        "appId": app_id, 
         "appSecret": app_secret,
         "email": email,
-        "password": password_hash
+        "password": pass_hash
     }
     
-    headers = {
-        "Content-Type": "application/json"
+    headers = {"Content-Type": "application/json"}
+    
+    # Список серверів для штурму
+    servers = {
+        "🇪🇺 Deye EU": f"https://eu1-developer.deyecloud.com/v1.0/account/token?appId={app_id}",
+        "🌍 Deye Global": f"https://developer.deyecloud.com/v1.0/account/token?appId={app_id}",
+        "☀️ Solarman": f"https://globalapi.solarmanpv.com/account/v1.0/token?appId={app_id}"
     }
     
-    try:
-        auth_res = requests.post(auth_url, json=auth_payload, headers=headers, timeout=10)
-        auth_data = auth_res.json()
-        
-        # Перевірка помилки
-        if not auth_data.get("success"):
-            return f"⚠️ <b>Помилка авторизації (Крок 1):</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
+    log = "🔍 <b>Результати штурму серверів:</b>\n\n"
+    
+    for name, url in servers.items():
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=5)
+            data = res.json()
             
-        # У Deye ключ називається accessToken (з великої літери T)
-        token = auth_data.get("accessToken")
-        
-        if not token:
-             return f"⚠️ <b>Токен не знайдено у відповіді:</b>\n<code>{json.dumps(auth_data, indent=2)}</code>"
-             
-        # --- КРОК 2: ОТРИМАННЯ СТАНЦІЙ ---
-        station_url = "https://eu1-developer.deyecloud.com/v1.0/station/list"
-        
-        station_headers = {
-            "Authorization": f"bearer {token}",  # Deye вимагає 'bearer' з маленької літери
-            "Content-Type": "application/json"
-        }
-        
-        station_payload = {
-            "page": 1,
-            "limit": 10
-        }
-        
-        stat_res = requests.post(station_url, headers=station_headers, json=station_payload, timeout=10)
-        stat_data = stat_res.json()
-        
-        if stat_res.status_code == 200 and stat_data.get("success"):
-            return f"✅ <b>УСПІХ! СТАНЦІЇ ЗНАЙДЕНО:</b>\n<code>{json.dumps(stat_data, indent=2)[:700]}</code>"
-        else:
-            return f"⚠️ <b>Помилка станцій (Крок 2):</b>\n<code>{json.dumps(stat_data, indent=2)}</code>"
+            if data.get("success"):
+                token = data.get("accessToken") or data.get("access_token")
+                return f"🎉 <b>БІНГО!</b>\nСервер <b>{name}</b> прийняв нас!\n\n🔑 Токен отримано:\n<code>{token[:30]}...</code>"
+            else:
+                msg = data.get("msg", "Невідомо")
+                code = data.get("code", "-")
+                log += f"❌ {name}: {msg} (Код: {code})\n"
+        except Exception as e:
+            log += f"⚠️ {name}: Сервер не відповів\n"
             
-    except Exception as e:
-        return f"❌ Системна помилка: {e}"
+    log += "\n<i>Якщо всюди відмова — значить ваш ключ 100% заблокований до ручної модерації розробниками Deye. Жоден код цього не обійде.</i>"
+    
+    return log
 
-# Зв'язуємо функції для сумісності
-get_test_connection = get_station_list
+# Зв'язуємо для сумісності з handlers.py
+get_test_connection = test_all_servers
