@@ -2,9 +2,13 @@ import os
 import requests
 import json
 import hashlib
+import uuid
 
 def get_test_connection():
-    url = "https://developer.deyecloud.com/openmcp/mcp"
+    # Генеруємо унікальний ідентифікатор сесії для кожного запиту
+    session_id = uuid.uuid4().hex
+    # Додаємо sessionId як параметр до URL
+    url = f"https://developer.deyecloud.com/openmcp/mcp?sessionId={session_id}"
     
     app_secret = os.environ.get("DEYE_CLOUD_KEY", "").strip()
     email = os.environ.get("DEYE_EMAIL", "").strip()
@@ -25,7 +29,6 @@ def get_test_connection():
         }
     }
     
-    # ДОДАНО ОБОВ'ЯЗКОВИЙ ПАРАМЕТР ACCEPT
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
@@ -34,7 +37,6 @@ def get_test_connection():
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=10)
         
-        # Спершу пробуємо прочитати як JSON, якщо не вийде — як звичайний текст
         try:
             data = res.json()
             formatted_json = json.dumps(data, indent=2, ensure_ascii=False)
